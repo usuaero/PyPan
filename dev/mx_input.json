@@ -1,0 +1,28 @@
+{
+    "run" : {
+        "stl" : {
+            "filename" : "wing.stl"
+        }
+    },
+    "scene" : {
+        "aircraft" : {
+            "wing" : {
+                "file" : {
+                    "airfoils" : {
+                        "0012" : {
+                            "geometry" : {
+                                "NACA" : "0012"
+                            }
+                        }
+                    },
+                    "wings" : {
+                        "main_wing" : {
+                            "semispan" : 4.0,
+                            "airfoil" : "0012"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
