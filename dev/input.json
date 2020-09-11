@@ -1,0 +1,10 @@
+{
+    "solver" : {
+        "type" : "vortex_ring"
+    },
+    "mesh" : {
+        "mesh_file" : "wing.stl",
+        "mesh_file_type" : "STL",
+        "kutta_angle" : 50.0
+    }
+}
