@@ -1,6 +1,7 @@
 """Defines classes for handling geometric panels and meshes."""
 
 import stl
+import warnings
 
 import numpy as np
 
@@ -103,6 +104,10 @@ class Mesh:
                                  self._raw_stl_mesh.v1[i],
                                  self._raw_stl_mesh.v2[i],
                                  n=self._raw_stl_mesh.normals[i])
+
+            # Check for zero area
+            if abs(self.panels[i].A)<1e-10:
+                raise IOError("Panel {0} in the mesh has zero area.".format(i))
 
         if self._verbose: print("{0} mesh panels successfully initialized.".format(self.N))
 
