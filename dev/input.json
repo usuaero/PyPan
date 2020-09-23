@@ -9,7 +9,7 @@
         },
         "bodies" : {
             "wing" : {
-                "mesh_file" : "wing.stl",
+                "mesh_file" : "dev/swept_wing.stl",
                 "mesh_file_type" : "STL",
                 "kutta_angle" : 50.0,
                 "position" : [0.0, 0.0, 0.0],
