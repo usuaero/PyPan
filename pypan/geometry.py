@@ -11,7 +11,9 @@ from mpl_toolkits.mplot3d import Axes3D
 
 class Panel:
     """A base class defining a panel for potential flow simulation."""
-    pass
+
+    def __init__(self):
+        pass
 
 
 class Quad(Panel):
@@ -130,7 +132,7 @@ class Mesh:
         self._load_mesh(mesh_file, mesh_type)
 
         # Check mesh
-        self._check_mesh()
+        self._check_mesh(**kwargs)
 
     
     def _load_mesh(self, mesh_file, mesh_file_type):
@@ -151,7 +153,9 @@ class Mesh:
 
         # Initialize panel objects
         self.N = self._raw_stl_mesh.v0.shape[0]
-        if self._verbose: print("Successfully read STL file with {0} facets.".format(self.N))
+        if self._verbose:
+            print("Successfully read STL file with {0} facets.".format(self.N))
+            print("Initializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='')
         self.panels = np.empty(self.N, dtype=Tri)
         for i in range(self.N):
             self.panels[i] = Tri(self._raw_stl_mesh.v0[i],
@@ -163,12 +167,55 @@ class Mesh:
             if abs(self.panels[i].A)<1e-10:
                 raise IOError("Panel {0} in the mesh has zero area.".format(i))
 
-        if self._verbose: print("{0} mesh panels successfully initialized.".format(self.N))
+        if self._verbose: print("Finished.")
 
 
-    def _check_mesh(self):
+    def _check_mesh(self, **kwargs):
         # Checks the mesh is appropriate and determines where Kutta condition should exist
-        pass
+
+        # Get Kutta angle
+        theta_K = np.radians(kwargs.get("kutta_angle", None))
+
+        # Look for adjacent panels where the Kutta condition should be applied
+        if theta_K is not None:
+            if self._verbose: print("Determining location of Kutta condition...", end='')
+
+            # Store edges
+            wake_edges = []
+
+            # Loop through possible combinations
+            for i in range(self.N):
+                panel_i = self.panels[i]
+
+                # Start at the (i+1)th panel, so we don't repeat ourselves
+                for j in range(i+1, self.N):
+                    panel_j = self.panels[j]
+                    
+                    # Determine panel angle first, because that's cheaper
+                    with np.errstate(invalid='ignore'):
+                        theta = abs(np.arccos(np.einsum('i,i', panel_i.n, panel_j.n)))
+
+                    # Store if greater than the Kutta angle
+                    if theta > theta_K:
+
+                        # Determine if we're adjacent
+                        edge = []
+                        for vi in [panel_i.v0, panel_i.v1, panel_i.v2]:
+                            for vj in [panel_j.v0, panel_j.v1, panel_j.v2]:
+
+                                # Check distance
+                                d = np.linalg.norm(vi-vj)
+                                if d<1e-8:
+                                    edge.append(vi)
+
+                                # Check we have two vertices already
+                                if len(edge) == 2:
+                                    wake_edges.append(edge)
+                                    break
+
+
+            self.wake_edges = np.array(wake_edges)
+            if self._verbose: print("Finished. {0} Kutta edges detected.".format(self.wake_edges.shape[0]))
 
 
     def plot(self, **kwargs):
@@ -181,6 +228,10 @@ class Mesh:
 
         centroids : bool, optional
             Whether to display centroids. Defaults to True.
+
+        kutta_edges : bool, optional
+            Whether to display the edges at which the Kutta condition will be enforced.
+            Defaults to True.
         """
 
         # Set up plot
@@ -197,6 +248,11 @@ class Mesh:
             for i in range(self.N):
                 panel = self.panels[i]
                 ax.plot(panel.v_cg[0], panel.v_cg[1], panel.v_cg[2], 'r.')
+
+        # Plot Kutta edges
+        if kwargs.get("kutta_edges", True) and hasattr(self, "wake_edges"):
+            for edge in self.wake_edges:
+                ax.plot(edge[:,0], edge[:,1], edge[:,2], 'b')
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
