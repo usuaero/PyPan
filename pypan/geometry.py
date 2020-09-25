@@ -83,19 +83,17 @@ class Tri(Panel):
     def _calc_centroid(self):
         # Calculates the location of the panel centroid
 
-        # Get primed coordinate system
-        x_p = self.v1-self.v0
-        x_p = x_p/np.linalg.norm(x_p)
-        z_p = np.copy(self.n)
-        y_p = np.cross(z_p, x_p)
-
         # Construct transformation matrix
-        T = np.concatenate((x_p[:,np.newaxis], y_p[:,np.newaxis], z_p[:,np.newaxis]), axis=1).T
+        T = np.zeros((3,3))
+        T[0,:] = self.v1-self.v0
+        T[0,:] /= np.linalg.norm(T[0,:])
+        T[1,:] = np.cross(self.n, T[0,:])
+        T[2,:] = np.copy(self.n)
         
         # Transform vertices
-        v0_p = np.matmul(T, self.v0[:,np.newaxis]).flatten()
-        v1_p = np.matmul(T, self.v1[:,np.newaxis]).flatten()
-        v2_p = np.matmul(T, self.v2[:,np.newaxis]).flatten()
+        v0_p = np.einsum('ij,j', T, self.v0)
+        v1_p = np.einsum('ij,j', T, self.v1)
+        v2_p = np.einsum('ij,j', T, self.v2)
 
         # Get transformed coordinates of centroid
         x_c_p = 1.0/(6.0*self.A)*(
@@ -108,8 +106,14 @@ class Tri(Panel):
             (v2_p[1]+v0_p[1])*(v2_p[0]*v0_p[1]-v0_p[0]*v2_p[1]))
 
         # Transform back to standard coordinates
-        v_cg_p = np.array([x_c_p, y_c_p, 0.0])[:,np.newaxis]
-        self.v_cg = np.matmul(T.T, v_cg_p).flatten()
+        self.v_cg = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
+
+
+    def get_plot_list(self):
+        """Returns a list of the vertex coordinates for plotting."""
+        return [[self.v0[0], self.v1[0], self.v2[0], self.v0[0]],
+                [self.v0[1], self.v1[1], self.v1[1], self.v0[1]],
+                [self.v0[2], self.v1[2], self.v2[2], self.v0[2]]]
 
 
 class Mesh:
@@ -172,8 +176,8 @@ class Mesh:
 
         Parameters
         ----------
-        vertices : bool, optional
-            Whether to display vertices. Defaults to True.
+        panels : bool, optional
+            Whether to display panels. Defaults to True.
 
         centroids : bool, optional
             Whether to display centroids. Defaults to True.
@@ -184,12 +188,9 @@ class Mesh:
         ax = fig.gca(projection='3d')
         
         # Plot vertices
-        if kwargs.get("vertices", True):
+        if kwargs.get("panels", True):
             for i in range(self.N):
-                panel = self.panels[i]
-                ax.plot(panel.v0[0], panel.v0[1], panel.v0[2], 'b.')
-                ax.plot(panel.v1[0], panel.v1[1], panel.v1[2], 'b.')
-                ax.plot(panel.v2[0], panel.v2[1], panel.v2[2], 'b.')
+                ax.plot(*self.panels[i].get_plot_list(),'k-')
         
         # Plot centroids
         if kwargs.get("centroids", True):
