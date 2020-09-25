@@ -3,6 +3,10 @@
 import numpy as np
 
 
-class BaseSolver:
-    """A base class for a solver."""
-    pass
+class VortexRingSolver:
+    """Vortex ring solver."""
+
+    def __init__(self, **kwargs):
+
+        # Store param dict
+        self._input_dict = kwargs["param_dict"]
