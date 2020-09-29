@@ -18,5 +18,5 @@ class VortexRingSolver:
 
     def __init__(self, **kwargs):
 
-        # Store param dict
-        self._input_dict = kwargs["param_dict"]
+        # Store mesh
+        self._mesh = kwargs["mesh"]

@@ -2,11 +2,14 @@
 
 import stl
 import warnings
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
+
+from .pp_math import vec_norm, norm, vec_inner, inner, vec_cross, cross
 
 
 class Panel:
@@ -30,9 +33,10 @@ class Tri(Panel):
         super().__init__()
 
         # Store vectors
-        self.v0 = v0
-        self.v1 = v1
-        self.v2 = v2
+        self.vertices = np.zeros((3,3))
+        self.vertices[0] = v0
+        self.vertices[1] = v1
+        self.vertices[2] = v2
         self.n = n
 
         # Get normal vector
@@ -40,7 +44,7 @@ class Tri(Panel):
             self._calc_normal()
         else:
             try:
-                self.n = self.n/np.linalg.norm(self.n)
+                self.n = self.n/norm(self.n)
             except RuntimeWarning:
                 self._calc_normal()
 
@@ -56,9 +60,9 @@ class Tri(Panel):
 
         # Get vector components
         nx, ny, nz = self.n
-        x0, y0, z0 = self.v0
-        x1, y1, z1 = self.v1
-        x2, y2, z2 = self.v2
+        x0, y0, z0 = self.vertices[0]
+        x1, y1, z1 = self.vertices[1]
+        x2, y2, z2 = self.vertices[2]
 
         # Get the area using Stoke's theorem
         dA0 = 0.5*ny*(z1+z0)*(x1-x0)\
@@ -76,10 +80,10 @@ class Tri(Panel):
 
     def _calc_normal(self):
         # Calculates the panel unit normal vector
-        d1 = self.v1-self.v0
-        d2 = self.v2-self.v1
-        N = np.cross(d1, d2)
-        self.n = N/np.linalg.norm(N)
+        d1 = self.vertices[1]-self.vertices[0]
+        d2 = self.vertices[2]-self.vertices[1]
+        N = cross(d1, d2)
+        self.n = N/norm(N)
 
     
     def _calc_centroid(self):
@@ -87,15 +91,15 @@ class Tri(Panel):
 
         # Construct transformation matrix
         T = np.zeros((3,3))
-        T[0,:] = self.v1-self.v0
-        T[0,:] /= np.linalg.norm(T[0,:])
-        T[1,:] = np.cross(self.n, T[0,:])
-        T[2,:] = np.copy(self.n)
+        T[0] = self.vertices[1]-self.vertices[0]
+        T[0] /= norm(T[0])
+        T[1] = cross(self.n, T[0])
+        T[2] = np.copy(self.n)
         
         # Transform vertices
-        v0_p = np.einsum('ij,j', T, self.v0)
-        v1_p = np.einsum('ij,j', T, self.v1)
-        v2_p = np.einsum('ij,j', T, self.v2)
+        v0_p = np.einsum('ij,j', T, self.vertices[0])
+        v1_p = np.einsum('ij,j', T, self.vertices[1])
+        v2_p = np.einsum('ij,j', T, self.vertices[2])
 
         # Get transformed coordinates of centroid
         x_c_p = 1.0/(6.0*self.A)*(
@@ -109,13 +113,6 @@ class Tri(Panel):
 
         # Transform back to standard coordinates
         self.v_cg = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
-
-
-    def get_plot_list(self):
-        """Returns a list of the vertex coordinates for plotting."""
-        return [[self.v0[0], self.v1[0], self.v2[0], self.v0[0]],
-                [self.v0[1], self.v1[1], self.v1[1], self.v0[1]],
-                [self.v0[2], self.v1[2], self.v2[2], self.v0[2]]]
 
 
     def get_ring_influence(self, points):
@@ -136,19 +133,19 @@ class Tri(Panel):
         """
 
         # Determine displacement vectors
-        r0 = points-self.v0[np.newaxis,:]
-        r1 = points-self.v1[np.newaxis,:]
-        r2 = points-self.v2[np.newaxis,:]
+        r0 = points-self.vertices[0,:]
+        r1 = points-self.vertices[1,:]
+        r2 = points-self.vertices[2,:]
 
         # Determine displacement vector magnitudes
-        r0_mag = np.linalg.norm(r0, axis=1, keepdims=True)
-        r1_mag = np.linalg.norm(r1, axis=1, keepdims=True)
-        r2_mag = np.linalg.norm(r2, axis=1, keepdims=True)
+        r0_mag = vec_norm(r0, axis=1, keepdims=True)
+        r1_mag = vec_norm(r1, axis=1, keepdims=True)
+        r2_mag = vec_norm(r2, axis=1, keepdims=True)
 
         # Calculate influence
-        v_01 = ((r0_mag+r1_mag)*np.cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+np.einsum('i,i', r0, r1)[:,np.newaxis]))
-        v_12 = ((r1_mag+r2_mag)*np.cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+np.einsum('i,i', r1, r2)[:,np.newaxis]))
-        v_20 = ((r2_mag+r0_mag)*np.cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+np.einsum('i,i', r2, r0)[:,np.newaxis]))
+        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+np.einsum('i,i', r0, r1)[:,np.newaxis]))
+        v_12 = ((r1_mag+r2_mag)*vec_cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+np.einsum('i,i', r1, r2)[:,np.newaxis]))
+        v_20 = ((r2_mag+r0_mag)*vec_cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+np.einsum('i,i', r2, r0)[:,np.newaxis]))
 
         return 0.25/np.pi*(v_01+v_12+v_20)
 
@@ -172,12 +169,16 @@ class Mesh:
     
     def _load_mesh(self, mesh_file, mesh_file_type):
         # Loads the mesh from the input file
+        start_time = time.time()
 
         # STL
         if mesh_file_type == "STL":
             self._load_stl(mesh_file)
         else:
             raise IOError("{0} is not a supported mesh type for PyPan.")
+
+        end_time = time.time()
+        if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
 
     def _load_stl(self, stl_file):
@@ -190,7 +191,7 @@ class Mesh:
         self.N = self._raw_stl_mesh.v0.shape[0]
         if self._verbose:
             print("Successfully read STL file with {0} facets.".format(self.N))
-            print("Initializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='')
+            print("Initializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='', flush=True)
         self.panels = np.empty(self.N, dtype=Tri)
         for i in range(self.N):
             self.panels[i] = Tri(self._raw_stl_mesh.v0[i],
@@ -202,25 +203,23 @@ class Mesh:
             if abs(self.panels[i].A)<1e-10:
                 raise IOError("Panel {0} in the mesh has zero area.".format(i))
 
-        if self._verbose: print("Finished.")
-
 
     def _check_mesh(self, **kwargs):
         # Checks the mesh is appropriate and determines where Kutta condition should exist
+        start_time = time.time()
 
         # Get Kutta angle
         theta_K = np.radians(kwargs.get("kutta_angle", None))
 
         # Look for adjacent panels where the Kutta condition should be applied
         if theta_K is not None:
-            if self._verbose: print("Determining location of Kutta condition...", end='')
+            if self._verbose: print("Determining locations to apply Kutta condition...", end='', flush=True)
 
             # Store edges
             wake_edges = []
 
             # Loop through possible combinations
-            for i in range(self.N):
-                panel_i = self.panels[i]
+            for i, panel_i in enumerate(self.panels):
 
                 # Start at the (i+1)th panel, so we don't repeat ourselves
                 for j in range(i+1, self.N):
@@ -228,18 +227,18 @@ class Mesh:
                     
                     # Determine panel angle first, because that's cheaper
                     with np.errstate(invalid='ignore'):
-                        theta = abs(np.arccos(np.einsum('i,i', panel_i.n, panel_j.n)))
+                        theta = abs(np.arccos(inner(panel_i.n, panel_j.n)))
 
                     # Store if greater than the Kutta angle
                     if theta > theta_K:
 
                         # Determine if we're adjacent
                         edge = []
-                        for vi in [panel_i.v0, panel_i.v1, panel_i.v2]:
-                            for vj in [panel_j.v0, panel_j.v1, panel_j.v2]:
+                        for vi in panel_i.vertices:
+                            for vj in panel_j.vertices:
 
                                 # Check distance
-                                d = np.linalg.norm(vi-vj)
+                                d = norm(vi-vj)
                                 if d<1e-8:
                                     edge.append(vi)
 
@@ -250,7 +249,8 @@ class Mesh:
 
 
             self.wake_edges = np.array(wake_edges)
-            if self._verbose: print("Finished. {0} Kutta edges detected.".format(self.wake_edges.shape[0]))
+            end_time = time.time()
+            if self._verbose: print("Finished. {0} Kutta edges detected. Time: {1} s.".format(self.wake_edges.shape[0], end_time-start_time), flush=True)
 
 
     def plot(self, **kwargs):
@@ -275,19 +275,18 @@ class Mesh:
         
         # Plot vertices
         if kwargs.get("panels", True):
-            for i in range(self.N):
-                ax.plot(*self.panels[i].get_plot_list(),'k-')
+            for i, panel in enumerate(self.panels):
+                ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], 'k-', label='Panel' if i==0 else '')
         
         # Plot centroids
         if kwargs.get("centroids", True):
-            for i in range(self.N):
-                panel = self.panels[i]
-                ax.plot(panel.v_cg[0], panel.v_cg[1], panel.v_cg[2], 'r.')
+            for i, panel in enumerate(self.panels):
+                ax.plot(panel.v_cg[0], panel.v_cg[1], panel.v_cg[2], 'r.', label='Centroid' if i==0 else '')
 
         # Plot Kutta edges
         if kwargs.get("kutta_edges", True) and hasattr(self, "wake_edges"):
-            for edge in self.wake_edges:
-                ax.plot(edge[:,0], edge[:,1], edge[:,2], 'b')
+            for i, edge in enumerate(self.wake_edges):
+                ax.plot(edge[:,0], edge[:,1], edge[:,2], 'b', label='Kutta Edge' if i==0 else '')
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -295,4 +294,5 @@ class Mesh:
         lims= ax.get_ylim()
         ax.set_xlim3d(lims[0], lims[1])
         ax.set_zlim3d(lims[0], lims[1])
+        plt.legend()
         plt.show()
