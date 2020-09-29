@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
 from .pp_math import vec_norm, norm, vec_inner, inner, vec_cross, cross
+from .helpers import OneLineProgress
 
 
 class Panel:
@@ -53,6 +54,9 @@ class Tri(Panel):
 
         # Determine centroid
         self._calc_centroid()
+
+        # Determine max side length
+        self.d_max = np.max(vec_norm(self.vertices-np.roll(self.vertices, 1, axis=0)))
 
 
     def _calc_area(self):
@@ -112,7 +116,7 @@ class Tri(Panel):
             (v2_p[1]+v0_p[1])*(v2_p[0]*v0_p[1]-v0_p[0]*v2_p[1]))
 
         # Transform back to standard coordinates
-        self.v_cg = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
+        self.v_c = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
 
 
     def get_ring_influence(self, points):
@@ -138,16 +142,40 @@ class Tri(Panel):
         r2 = points-self.vertices[2,:]
 
         # Determine displacement vector magnitudes
-        r0_mag = vec_norm(r0, axis=1, keepdims=True)
-        r1_mag = vec_norm(r1, axis=1, keepdims=True)
-        r2_mag = vec_norm(r2, axis=1, keepdims=True)
+        r0_mag = vec_norm(r0)[:,np.newaxis]
+        r1_mag = vec_norm(r1)[:,np.newaxis]
+        r2_mag = vec_norm(r2)[:,np.newaxis]
 
         # Calculate influence
-        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+np.einsum('i,i', r0, r1)[:,np.newaxis]))
-        v_12 = ((r1_mag+r2_mag)*vec_cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+np.einsum('i,i', r1, r2)[:,np.newaxis]))
-        v_20 = ((r2_mag+r0_mag)*vec_cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+np.einsum('i,i', r2, r0)[:,np.newaxis]))
+        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1)[:,np.newaxis]))
+        v_12 = ((r1_mag+r2_mag)*vec_cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+vec_inner(r1, r2)[:,np.newaxis]))
+        v_20 = ((r2_mag+r0_mag)*vec_cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+vec_inner(r2, r0)[:,np.newaxis]))
 
         return 0.25/np.pi*(v_01+v_12+v_20)
+
+
+class KuttaEdge:
+    """A class for defining an edge segment at which the Kutta condition is applied.
+
+    Parameters
+    ----------
+    v0 : ndarray
+        Start vertex.
+
+    v1 : ndarray
+        End vertex.
+
+    panel_indices : list
+        Indices (within the mesh) of the panels neighboring this edge.
+    """
+
+    def __init__(self, v0, v1, panel_indices):
+
+        # Store
+        self.vertices = np.zeros((2, 3))
+        self.vertices[0] = v0
+        self.vertices[1] = v1
+        self.panel_indices = panel_indices
 
 
 class Mesh:
@@ -190,8 +218,8 @@ class Mesh:
         # Initialize panel objects
         self.N = self._raw_stl_mesh.v0.shape[0]
         if self._verbose:
-            print("Successfully read STL file with {0} facets.".format(self.N))
-            print("Initializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='', flush=True)
+            print("\nSuccessfully read STL file with {0} facets.".format(self.N))
+            print("\nInitializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='', flush=True)
         self.panels = np.empty(self.N, dtype=Tri)
         for i in range(self.N):
             self.panels[i] = Tri(self._raw_stl_mesh.v0[i],
@@ -206,17 +234,18 @@ class Mesh:
 
     def _check_mesh(self, **kwargs):
         # Checks the mesh is appropriate and determines where Kutta condition should exist
-        start_time = time.time()
 
         # Get Kutta angle
         theta_K = np.radians(kwargs.get("kutta_angle", None))
 
         # Look for adjacent panels where the Kutta condition should be applied
         if theta_K is not None:
-            if self._verbose: print("Determining locations to apply Kutta condition...", end='', flush=True)
+            if self._verbose:
+                print()
+                prog = OneLineProgress(self.N, msg="Determining locations to apply Kutta condition")
 
             # Store edges
-            wake_edges = []
+            self.kutta_edges = []
 
             # Loop through possible combinations
             for i, panel_i in enumerate(self.panels):
@@ -233,24 +262,32 @@ class Mesh:
                     if theta > theta_K:
 
                         # Determine if we're adjacent
-                        edge = []
+                        v0 = None
                         for vi in panel_i.vertices:
                             for vj in panel_j.vertices:
 
                                 # Check distance
                                 d = norm(vi-vj)
-                                if d<1e-8:
-                                    edge.append(vi)
+                                if d > panel_i.d_max+panel_j.d_max:
+                                    break # There's no way for them to be touching then
 
-                                # Check we have two vertices already
-                                if len(edge) == 2:
-                                    wake_edges.append(edge)
-                                    break
+                                elif d<1e-8:
+
+                                    # Store first
+                                    if v0 is None:
+                                        v0 = vi
+
+                                    # Initialize edge object
+                                    else:
+                                        self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                        break
+
+                if self._verbose:
+                    prog.display()
 
 
-            self.wake_edges = np.array(wake_edges)
-            end_time = time.time()
-            if self._verbose: print("Finished. {0} Kutta edges detected. Time: {1} s.".format(self.wake_edges.shape[0], end_time-start_time), flush=True)
+            self.N_edges = len(self.kutta_edges)
+            if self._verbose: print("   {0} Kutta edges detected.".format(self.N_edges), flush=True)
 
 
     def plot(self, **kwargs):
@@ -281,12 +318,12 @@ class Mesh:
         # Plot centroids
         if kwargs.get("centroids", True):
             for i, panel in enumerate(self.panels):
-                ax.plot(panel.v_cg[0], panel.v_cg[1], panel.v_cg[2], 'r.', label='Centroid' if i==0 else '')
+                ax.plot(panel.v_c[0], panel.v_c[1], panel.v_c[2], 'r.', label='Centroid' if i==0 else '')
 
         # Plot Kutta edges
-        if kwargs.get("kutta_edges", True) and hasattr(self, "wake_edges"):
-            for i, edge in enumerate(self.wake_edges):
-                ax.plot(edge[:,0], edge[:,1], edge[:,2], 'b', label='Kutta Edge' if i==0 else '')
+        if kwargs.get("kutta_edges", True) and hasattr(self, "kutta_edges"):
+            for i, edge in enumerate(self.kutta_edges):
+                ax.plot(edge.vertices[:,0], edge.vertices[:,1], edge.vertices[:,2], 'b', label='Kutta Edge' if i==0 else '')
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
