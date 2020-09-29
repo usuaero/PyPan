@@ -118,6 +118,41 @@ class Tri(Panel):
                 [self.v0[2], self.v1[2], self.v2[2], self.v0[2]]]
 
 
+    def get_ring_influence(self, points):
+        """Determines the velocity vector induced by this panel at arbitrary
+        points, assuming a vortex ring (0th order) model and a unit positive
+        vortex strength.
+
+        Parameters
+        ----------
+        points : ndarray
+            An array of points where the first index is the point index and 
+            the second index is the coordinate.
+
+        Returns
+        -------
+        ndarray
+            The velocity vector induced at each point.
+        """
+
+        # Determine displacement vectors
+        r0 = points-self.v0[np.newaxis,:]
+        r1 = points-self.v1[np.newaxis,:]
+        r2 = points-self.v2[np.newaxis,:]
+
+        # Determine displacement vector magnitudes
+        r0_mag = np.linalg.norm(r0, axis=1, keepdims=True)
+        r1_mag = np.linalg.norm(r1, axis=1, keepdims=True)
+        r2_mag = np.linalg.norm(r2, axis=1, keepdims=True)
+
+        # Calculate influence
+        v_01 = ((r0_mag+r1_mag)*np.cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+np.einsum('i,i', r0, r1)[:,np.newaxis]))
+        v_12 = ((r1_mag+r2_mag)*np.cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+np.einsum('i,i', r1, r2)[:,np.newaxis]))
+        v_20 = ((r2_mag+r0_mag)*np.cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+np.einsum('i,i', r2, r0)[:,np.newaxis]))
+
+        return 0.25/np.pi*(v_01+v_12+v_20)
+
+
 class Mesh:
     """A class for defining collections of panels."""
 
