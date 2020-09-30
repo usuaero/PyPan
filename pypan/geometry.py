@@ -215,21 +215,35 @@ class Mesh:
         # Load stl file
         self._raw_stl_mesh = stl.mesh.Mesh.from_file(stl_file)
 
-        # Initialize panel objects
+        # Initialize and storage arrays
         self.N = self._raw_stl_mesh.v0.shape[0]
+        self.panels = np.empty(self.N, dtype=Tri)
+        self.cp = np.zeros((self.N, 3))
+        self.n = np.zeros((self.N, 3))
+        self.dA = np.zeros(self.N)
+
         if self._verbose:
             print("\nSuccessfully read STL file with {0} facets.".format(self.N))
             print("\nInitializing mesh panels (vertices, normals, areas, centroids, etc.)...", end='', flush=True)
-        self.panels = np.empty(self.N, dtype=Tri)
+
+        # Loop through panels and initialize objects
         for i in range(self.N):
-            self.panels[i] = Tri(self._raw_stl_mesh.v0[i],
-                                 self._raw_stl_mesh.v1[i],
-                                 self._raw_stl_mesh.v2[i],
-                                 n=self._raw_stl_mesh.normals[i])
+
+            # Initialize
+            panel = Tri(self._raw_stl_mesh.v0[i],
+                    self._raw_stl_mesh.v1[i],
+                    self._raw_stl_mesh.v2[i],
+                    n=self._raw_stl_mesh.normals[i])
 
             # Check for zero area
-            if abs(self.panels[i].A)<1e-10:
+            if abs(panel.A)<1e-10:
                 raise IOError("Panel {0} in the mesh has zero area.".format(i))
+
+            # Store
+            self.panels[i] = panel
+            self.cp[i] = panel.v_c
+            self.n[i] = panel.n
+            self.dA[i] = panel.A
 
 
     def _check_mesh(self, **kwargs):
@@ -240,11 +254,16 @@ class Mesh:
 
         # Look for adjacent panels where the Kutta condition should be applied
         if theta_K is not None:
+
             if self._verbose:
                 print()
                 prog = OneLineProgress(self.N, msg="Determining locations to apply Kutta condition")
 
-            # Store edges
+            # Get panel angles
+            with np.errstate(invalid='ignore'):
+                theta = np.abs(np.arccos(np.einsum('ijk,ijk->ij', self.n[:,np.newaxis], self.n[np.newaxis,:])))
+
+            # Initialize edge storage
             self.kutta_edges = []
 
             # Loop through possible combinations
@@ -254,12 +273,12 @@ class Mesh:
                 for j in range(i+1, self.N):
                     panel_j = self.panels[j]
                     
-                    # Determine panel angle first, because that's cheaper
-                    with np.errstate(invalid='ignore'):
-                        theta = abs(np.arccos(inner(panel_i.n, panel_j.n)))
+                    ## Determine panel angle first, because that's cheaper
+                    #with np.errstate(invalid='ignore'):
+                    #    theta = np.abs(np.arccos(inner(panel_i.n, panel_j.n)))
 
                     # Store if greater than the Kutta angle
-                    if theta > theta_K:
+                    if theta[i,j] > theta_K:
 
                         # Determine if we're adjacent
                         v0 = None

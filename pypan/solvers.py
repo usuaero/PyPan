@@ -92,13 +92,9 @@ class VortexRingSolver(Solver):
         if verbose: print("\nParsing mesh...", end='', flush=True)
         self._N_panels = self._mesh.N
         self._N_edges = self._mesh.N_edges
-        self._cp = np.zeros((self._N_panels, 3))
-        self._n = np.zeros((self._N_panels, 3))
-        self._dA = np.zeros(self._N_panels)
-        for i, panel in enumerate(self._mesh.panels):
-            self._cp[i] = panel.v_c
-            self._n[i] = panel.n
-            self._dA[i] = panel.A
+        self._cp = np.copy(self._mesh.cp)
+        self._n = np.copy(self._mesh.n)
+        self._dA = np.copy(self._mesh.dA)
 
         # Gather edges
         self._N_edges = self._mesh.N_edges
