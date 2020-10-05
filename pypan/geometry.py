@@ -263,43 +263,47 @@ class Mesh:
             with np.errstate(invalid='ignore'):
                 theta = np.abs(np.arccos(np.einsum('ijk,ijk->ij', self.n[:,np.newaxis], self.n[np.newaxis,:])))
 
+            # Determine which panels have an angle greater than the Kutta angle
+            angle_greater = (theta>theta_K).astype(int)
+            i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
+
             # Initialize edge storage
             self.kutta_edges = []
 
             # Loop through possible combinations
-            for i, panel_i in enumerate(self.panels):
+            for i in i_panels:
 
-                # Start at the (i+1)th panel, so we don't repeat ourselves
-                for j in range(i+1, self.N):
+                j_panels = np.argwhere(angle_greater[i]).flatten()
+                for j in j_panels:
+                    
+                    # Don't repeat
+                    if j <= i:
+                        continue
+
+                    # Get panels
+                    panel_i = self.panels[i]
                     panel_j = self.panels[j]
                     
-                    ## Determine panel angle first, because that's cheaper
-                    #with np.errstate(invalid='ignore'):
-                    #    theta = np.abs(np.arccos(inner(panel_i.n, panel_j.n)))
+                    # Determine if we're adjacent
+                    v0 = None
+                    for vi in panel_i.vertices:
+                        for vj in panel_j.vertices:
 
-                    # Store if greater than the Kutta angle
-                    if theta[i,j] > theta_K:
+                            # Check distance
+                            d = norm(vi-vj)
+                            if d > panel_i.d_max+panel_j.d_max:
+                                break # There's no way for them to be touching then
 
-                        # Determine if we're adjacent
-                        v0 = None
-                        for vi in panel_i.vertices:
-                            for vj in panel_j.vertices:
+                            elif d<1e-8:
 
-                                # Check distance
-                                d = norm(vi-vj)
-                                if d > panel_i.d_max+panel_j.d_max:
-                                    break # There's no way for them to be touching then
+                                # Store first
+                                if v0 is None:
+                                    v0 = vi
 
-                                elif d<1e-8:
-
-                                    # Store first
-                                    if v0 is None:
-                                        v0 = vi
-
-                                    # Initialize edge object
-                                    else:
-                                        self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
-                                        break
+                                # Initialize edge object
+                                else:
+                                    self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                    break
 
                 if self._verbose:
                     prog.display()
