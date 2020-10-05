@@ -10,6 +10,7 @@ if __name__=="__main__":
     #mesh_file = "dev/swept_wing_51.stl"
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     my_mesh.plot(centroids=False, panels=True)
+    my_mesh.export("21.ppmsh")
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)

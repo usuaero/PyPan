@@ -119,6 +119,28 @@ class Tri(Panel):
         self.v_c = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
 
 
+    def __str__(self):
+        s = "P "+" ".join(["{:<20}"]*17)
+        s = s.format(self.vertices[0,0],
+                     self.vertices[0,1],
+                     self.vertices[0,2],
+                     self.vertices[1,0],
+                     self.vertices[1,1],
+                     self.vertices[1,2],
+                     self.vertices[2,0],
+                     self.vertices[2,1],
+                     self.vertices[2,2],
+                     self.n[0],
+                     self.n[1],
+                     self.n[2],
+                     self.v_c[0],
+                     self.v_c[1],
+                     self.v_c[2],
+                     self.A,
+                     self.d_max)
+        return s
+
+
     def get_ring_influence(self, points):
         """Determines the velocity vector induced by this panel at arbitrary
         points, assuming a vortex ring (0th order) model and a unit positive
@@ -176,6 +198,19 @@ class KuttaEdge:
         self.vertices[0] = v0
         self.vertices[1] = v1
         self.panel_indices = panel_indices
+
+
+    def __str__(self):
+        s = "E "+" ".join(["{:<20}"]*6)+" {} {}"
+        s = s.format(self.vertices[0,0],
+                     self.vertices[0,1],
+                     self.vertices[0,2],
+                     self.vertices[1,0],
+                     self.vertices[1,1],
+                     self.vertices[1,2],
+                     self.panel_indices[0],
+                     self.panel_indices[1])
+        return s
 
 
 class Mesh:
@@ -358,3 +393,24 @@ class Mesh:
         ax.set_zlim3d(lims[0], lims[1])
         plt.legend()
         plt.show()
+
+
+    def export(self, filename):
+        """Exports the mesh with all relevant parameters to make reloading faster.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to write the mesh to.
+        """
+
+        # Open file
+        with open(filename, 'w') as export_handle:
+
+            # Write panels
+            for panel in self.panels:
+                print(str(panel), file=export_handle)
+
+            # Write Kutta edges
+            for edge in self.kutta_edges:
+                print(str(edge), file=export_handle)
