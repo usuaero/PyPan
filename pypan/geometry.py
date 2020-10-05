@@ -275,7 +275,7 @@ class Mesh:
 
                 j_panels = np.argwhere(angle_greater[i]).flatten()
                 for j in j_panels:
-                    
+
                     # Don't repeat
                     if j <= i:
                         continue
@@ -336,7 +336,9 @@ class Mesh:
         # Plot vertices
         if kwargs.get("panels", True):
             for i, panel in enumerate(self.panels):
-                ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], 'k-', label='Panel' if i==0 else '')
+                n_vert = panel.vertices.shape[1]
+                ind = [x%n_vert for x in range(n_vert+1)]
+                ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
         
         # Plot centroids
         if kwargs.get("centroids", True):
