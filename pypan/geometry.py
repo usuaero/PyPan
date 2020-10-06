@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
+from abc import abstractmethod
 
 from .pp_math import vec_norm, norm, vec_inner, inner, vec_cross, cross
 from .helpers import OneLineProgress
@@ -16,31 +17,10 @@ from .helpers import OneLineProgress
 class Panel:
     """A base class defining a panel for potential flow simulation."""
 
-    def __init__(self):
-        pass
-
-
-class Quad(Panel):
-    """A quadrilateral panel."""
-
-    def __init__(self, v0, v1, v2, v3, n=None):
-        super().__init__()
-
-
-class Tri(Panel):
-    """A triangular panel."""
-
-    def __init__(self, v0, v1, v2, n=None):
-        super().__init__()
-
-        # Store vectors
-        self.vertices = np.zeros((3,3))
-        self.vertices[0] = v0
-        self.vertices[1] = v1
-        self.vertices[2] = v2
-        self.n = n
+    def __init__(self, **kwargs):
 
         # Get normal vector
+        self.n = kwargs.get("n")
         if self.n is None:
             self._calc_normal()
         else:
@@ -50,13 +30,67 @@ class Tri(Panel):
                 self._calc_normal()
 
         # Determine area
-        self._calc_area()
+        self.A = kwargs.get("A", None)
+        if self.A is None:
+            self._calc_area()
 
         # Determine centroid
-        self._calc_centroid()
+        self.v_c = kwargs.get("v_c", None)
+        if self.v_c is None:
+            self._calc_centroid()
 
         # Determine max side length
-        self.d_max = np.max(vec_norm(self.vertices-np.roll(self.vertices, 1, axis=0)))
+        self.d_max = kwargs.get("d_max", None)
+        if self.d_max is None:
+            self.d_max = np.max(vec_norm(self.vertices-np.roll(self.vertices, 1, axis=0)))
+
+
+    def _calc_normal(self):
+        # Calculates the panel unit normal vector
+        # Assumes the panel is planar
+        d1 = self.vertices[1]-self.vertices[0]
+        d2 = self.vertices[2]-self.vertices[1]
+        N = cross(d1, d2)
+        self.n = N/norm(N)
+
+
+    @abstractmethod
+    def _calc_centroid(self):
+        pass
+
+
+    @abstractmethod
+    def _calc_area(self):
+        pass
+
+
+class Quad(Panel):
+    """A quadrilateral panel."""
+
+    def __init__(self, **kwargs):
+
+        # Store vertices
+        self.vertices = np.zeros((4,3))
+        self.vertices[0] = kwargs.get("v0")
+        self.vertices[1] = kwargs.get("v1")
+        self.vertices[2] = kwargs.get("v2")
+        self.vertices[3] = kwargs.get("v3")
+
+        super().__init__(**kwargs)
+
+
+class Tri(Panel):
+    """A triangular panel."""
+
+    def __init__(self, **kwargs):
+
+        # Store vertices
+        self.vertices = np.zeros((3,3))
+        self.vertices[0] = kwargs.get("v0")
+        self.vertices[1] = kwargs.get("v1")
+        self.vertices[2] = kwargs.get("v2")
+
+        super().__init__(**kwargs)
 
 
     def _calc_area(self):
@@ -80,14 +114,6 @@ class Tri(Panel):
              +0.5*nx*(y0+y2)*(z0-z2)
 
         self.A = dA0+dA1+dA2
-
-
-    def _calc_normal(self):
-        # Calculates the panel unit normal vector
-        d1 = self.vertices[1]-self.vertices[0]
-        d2 = self.vertices[2]-self.vertices[1]
-        N = cross(d1, d2)
-        self.n = N/norm(N)
 
     
     def _calc_centroid(self):
@@ -214,7 +240,26 @@ class KuttaEdge:
 
 
 class Mesh:
-    """A class for defining collections of panels."""
+    """A class for defining collections of panels.
+
+    Parameters
+    ----------
+    mesh_file : str
+        File path to the mesh file.
+
+    mesh_file_type : str
+        The type of mesh file being loaded. Can be "STL" or "pypan".
+
+    kutta_angle : float, optional
+        The angle threshold for determining where the Kutta condition should
+        be enforced. Defaults to None (in which case, lifting bodies may not
+        be analyzed, except for "pypan" type meshes). 
+
+        This is not needed for "pypan" type meshes. However, if given, this 
+        will force reevaluation of the Kutta edges (expensive!) whether or not
+        were determined previously. If not given, this is skipped.
+    
+    """
 
     def __init__(self, **kwargs):
 
@@ -227,7 +272,8 @@ class Mesh:
         self._load_mesh(mesh_file, mesh_type)
 
         # Check mesh
-        self._check_mesh(**kwargs)
+        if mesh_type != "pypan" or (mesh_type == "pypan" and kwargs.get("kutta_angle", None) is None):
+            self._check_mesh(**kwargs)
 
     
     def _load_mesh(self, mesh_file, mesh_file_type):
@@ -237,6 +283,12 @@ class Mesh:
         # STL
         if mesh_file_type == "STL":
             self._load_stl(mesh_file)
+
+        # PyPan
+        elif mesh_file_type == "pypan":
+            self._load_pypan_mesh(mesh_file)
+
+        # Unrecognized type
         else:
             raise IOError("{0} is not a supported mesh type for PyPan.")
 
@@ -248,10 +300,10 @@ class Mesh:
         # Loads mesh from an stl file
 
         # Load stl file
-        self._raw_stl_mesh = stl.mesh.Mesh.from_file(stl_file)
+        raw_mesh = stl.mesh.Mesh.from_file(stl_file)
 
-        # Initialize and storage arrays
-        self.N = self._raw_stl_mesh.v0.shape[0]
+        # Initialize storage
+        self.N = raw_mesh.v0.shape[0]
         self.panels = np.empty(self.N, dtype=Tri)
         self.cp = np.zeros((self.N, 3))
         self.n = np.zeros((self.N, 3))
@@ -265,10 +317,10 @@ class Mesh:
         for i in range(self.N):
 
             # Initialize
-            panel = Tri(self._raw_stl_mesh.v0[i],
-                    self._raw_stl_mesh.v1[i],
-                    self._raw_stl_mesh.v2[i],
-                    n=self._raw_stl_mesh.normals[i])
+            panel = Tri(v0=raw_mesh.v0[i],
+                        v1=raw_mesh.v1[i],
+                        v2=raw_mesh.v2[i],
+                        n=raw_mesh.normals[i])
 
             # Check for zero area
             if abs(panel.A)<1e-10:
@@ -280,15 +332,92 @@ class Mesh:
             self.n[i] = panel.n
             self.dA[i] = panel.A
 
+    
+    def _load_pypan_mesh(self, pypan_file):
+        # Loads mesh from PyPan file
+
+        # Read in file
+        with open(pypan_file, 'r') as mesh_file_handle:
+            lines = mesh_file_handle.read().splitlines()
+
+        # Determine number of panels and edges
+        for i, line in enumerate(lines):
+            if line.split()[0] == "E":
+                self.N = i
+                break
+        N_edges = len(lines)-self.N
+
+        if self._verbose:
+            print("\nDetected {0} panels and {1} Kutta edges in mesh file.".format(self.N, N_edges))
+
+        # Initialize storage
+        self.panels = []
+        self.cp = np.zeros((self.N, 3))
+        self.n = np.zeros((self.N, 3))
+        self.dA = np.zeros(self.N)
+
+        if self._verbose:
+            print("\nParsing mesh panels (vertices, normals, areas, centroids, etc.)...", end='', flush=True)
+
+        # Loop through panels and initialize objects
+        for i in range(self.N):
+
+            # Split line
+            info = lines[i].split()
+
+            # Initialize panel
+            if len(info) == 18:
+                panel = Tri(v0=np.array([float(info[1]), float(info[2]), float(info[3])]),
+                            v1=np.array([float(info[4]), float(info[5]), float(info[6])]),
+                            v2=np.array([float(info[7]), float(info[8]), float(info[9])]),
+                            n=np.array([float(info[10]), float(info[11]), float(info[12])]),
+                            v_c=np.array([float(info[13]), float(info[14]), float(info[15])]),
+                            A=float(info[16]),
+                            d_max=float(info[17]))
+            elif len(info) == 19:
+                panel = Quad(v0=np.array([float(info[1]), float(info[2]), float(info[3])]),
+                             v1=np.array([float(info[4]), float(info[5]), float(info[6])]),
+                             v2=np.array([float(info[7]), float(info[8]), float(info[9])]),
+                             v3=np.array([float(info[10]), float(info[11]), float(info[12])]),
+                             n=np.array([float(info[13]), float(info[14]), float(info[15])]),
+                             v_c=np.array([float(info[16]), float(info[17]), float(info[18])]),
+                             A=float(info[19]),
+                             d_max=float(info[20]))
+
+            # Check for zero area
+            if abs(panel.A)<1e-10:
+                raise IOError("Panel {0} in the mesh has zero area.".format(i))
+
+            # Store
+            self.panels.append(panel)
+            self.cp[i] = panel.v_c
+            self.n[i] = panel.n
+            self.dA[i] = panel.A
+
+        # Loop through edges
+        self.kutta_edges = []
+        for i in range(N_edges):
+
+            # Split line
+            info = lines[i+self.N].split()
+
+            # Initialize edge
+            edge = KuttaEdge(np.array([float(info[1]), float(info[2]), float(info[3])]),
+                             np.array([float(info[4]), float(info[5]), float(info[6])]),
+                             [int(info[7]), int(info[8])])
+
+            self.kutta_edges.append(edge)
+
 
     def _check_mesh(self, **kwargs):
         # Checks the mesh is appropriate and determines where Kutta condition should exist
 
         # Get Kutta angle
-        theta_K = np.radians(kwargs.get("kutta_angle", None))
+        theta_K = kwargs.get("kutta_angle", None)
 
         # Look for adjacent panels where the Kutta condition should be applied
         if theta_K is not None:
+            theta_K = np.radians(theta_K)
 
             if self._verbose:
                 print()
@@ -346,6 +475,9 @@ class Mesh:
 
             self.N_edges = len(self.kutta_edges)
             if self._verbose: print("   {0} Kutta edges detected.".format(self.N_edges), flush=True)
+
+        else:
+            self.N_edges = 0
 
 
     def plot(self, **kwargs):
