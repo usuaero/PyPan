@@ -53,7 +53,7 @@ if __name__=="__main__":
                 "airfoil" : "NACA_0010",
                 "semispan" : 4.0,
                 "chord" : [[0.0, 1.0],
-                           [1.0, 0.5]],
+                           [1.0, 1.0]],
                 "twist" : [[0.0, 0.0],
                            [0.5, 0.0],
                            [0.5, 0.0],
@@ -72,7 +72,7 @@ if __name__=="__main__":
                 #    }
                 #},
                 "grid" : {
-                    "N" : 10,
+                    "N" : 50,
                     "wing_ID" : 1,
                     "reid_corrections" : True
                     #"joint_length" : 2.0,
@@ -81,7 +81,7 @@ if __name__=="__main__":
                 "CAD_options" :{
                     "round_stl_tip" : True,
                     "round_stl_root" : False,
-                    "n_rounding_sections" : 5
+                    "n_rounding_sections" : 10
                 }
             }
         }
@@ -105,8 +105,8 @@ if __name__=="__main__":
     scene.add_aircraft("plane", airplane_dict, state=state, control_state=control_state)
 
     #scene.display_wireframe(show_vortices=True)
-    stl_file = "dev/swept_wing_21_tapered.stl"
-    scene.export_stl(filename=stl_file, section_resolution=21)
+    stl_file = "dev/swept_wing_51.stl"
+    scene.export_stl(filename=stl_file, section_resolution=51)
 
     ## Solve forces
     #FM = scene.solve_forces(non_dimensional=False, verbose=True)
