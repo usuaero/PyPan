@@ -160,12 +160,12 @@ class VortexRingSolver(Solver):
 
         # Create panel influence matrix; first index is the influencing panel, second is the influenced panel
         if verbose: print("\nDetermining panel influence matrix...", end='', flush=True)
-        self._influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
+        self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
         for i, panel in enumerate(self._mesh.panels):
-            self._influence_matrix[i,:] = panel.get_ring_influence(self._cp)
+            self._panel_influence_matrix[i,:] = panel.get_ring_influence(self._cp)
 
         # Determine panel part of A matrix
-        self._A_panels = vec_inner(self._influence_matrix, self._n[np.newaxis,:])
+        self._A_panels = vec_inner(self._panel_influence_matrix, self._n[np.newaxis,:])
         if verbose: print("Finished", flush=True)
 
 
@@ -182,6 +182,7 @@ class VortexRingSolver(Solver):
         # Get freestream
         self._v_inf = np.array(kwargs["V_inf"])
         self._V_inf = norm(self._v_inf)
+        self._u_inf = self._v_inf/self._V_inf
         self._V_inf_2 = self._V_inf*self._V_inf
         self._rho = kwargs["rho"]
 
@@ -207,8 +208,27 @@ class VortexRingSolver(Solver):
 
         # Lifting
         if lifting:
+
+            # Create horseshoe vortex influence matrix; first index is the influencing panels (bordering the horseshoe vortex), second is the influenced panel
+            if verbose: print("\nDetermining horseshoe vortex influences...", end='', flush=True)
+            self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
+            for edge in self._mesh.kutta_edges:
+                p_ind = edge.panel_indices
+                V = -edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
+                self._vortex_influence_matrix[p_ind[0],:] = V
+                self._vortex_influence_matrix[p_ind[1],:] = V
+
+            # Determine panel part of A matrix
+            self._A_vortices = vec_inner(self._panel_influence_matrix, self._n[np.newaxis,:])
+            if verbose: print("Finished", flush=True)
+
             if verbose: print("\nSolving lifting case...", end='', flush=True)
-            pass
+
+            # Specify A matrix
+            A = self._A_panels+self._A_vortices
+
+            # Specify b vector
+            b = np.copy(self._b)
 
         # Nonlifting
         else:
@@ -228,13 +248,19 @@ class VortexRingSolver(Solver):
         end_time = time.time()
         if verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-            print("    Maximum residual: {0}".format(np.max(res)))
+            if rank >= self._N_panels:
+                print("    Maximum residual: {0}".format(np.max(res)))
             print("    Circulation sum: {0}".format(np.sum(self._gamma)))
+            print("    Rank of A matrix: {0}".format(rank))
+            print("    Max singular value of A: {0}".format(np.max(s_a)))
+            print("    Min singular value of A: {0}".format(np.min(s_a)))
 
         # Determine velocities at each control point
         if verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
-        self._v = np.sum(self._influence_matrix*self._gamma[:,np.newaxis,np.newaxis], axis=0)
+        self._v = np.sum(self._panel_influence_matrix*self._gamma[:,np.newaxis,np.newaxis], axis=0)
+        if lifting:
+            self._v += np.sum(self._vortex_influence_matrix*self._gamma[:,np.newaxis,np.newaxis], axis=0)
         self._V = vec_norm(self._v)
 
         # Determine coefficients of pressure

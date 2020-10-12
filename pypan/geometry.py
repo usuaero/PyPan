@@ -239,6 +239,43 @@ class KuttaEdge:
         return s
 
 
+    def get_vortex_influence(self, points, u_inf):
+        """Determines the velocity vector induced by this edge at arbitrary
+        points, assuming a horseshoe vortex is shed from this edge.
+
+        Parameters
+        ----------
+        points : ndarray
+            An array of points where the first index is the point index and 
+            the second index is the coordinate.
+
+        u_inf : ndarray
+            Freestream direction vectors. Same shape as points.
+
+        Returns
+        -------
+        ndarray
+            The velocity vector induced at each point.
+        """
+
+        # Determine displacement vectors
+        r0 = points-self.vertices[0,:]
+        r1 = points-self.vertices[1,:]
+
+        # Determine displacement vector magnitudes
+        r0_mag = vec_norm(r0)[:,np.newaxis]
+        r1_mag = vec_norm(r1)[:,np.newaxis]
+
+        # Calculate influence of bound segment
+        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1)[:,np.newaxis]))
+
+        # Calculate influence of trailing segments
+        v_0_inf = vec_cross(u_inf, r0)/(r0_mag*(r0_mag-vec_inner(u_inf, r0)[:,np.newaxis]))
+        v_1_inf = vec_cross(u_inf, r1)/(r1_mag*(r1_mag-vec_inner(u_inf, r1)[:,np.newaxis]))
+
+        return 0.25/np.pi*(-v_0_inf+v_01+v_1_inf)
+
+
 class Mesh:
     """A class for defining collections of panels.
 
@@ -294,7 +331,7 @@ class Mesh:
 
         # Unrecognized type
         else:
-            raise IOError("{0} is not a supported mesh type for PyPan.")
+            raise IOError("{0} is not a supported mesh type for PyPan.".format(mesh_file_type))
 
         end_time = time.time()
         if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
@@ -454,7 +491,7 @@ class Mesh:
                     
                     # Determine if we're adjacent
                     v0 = None
-                    for vi in panel_i.vertices:
+                    for ii, vi in enumerate(panel_i.vertices):
                         for vj in panel_j.vertices:
 
                             # Check distance
@@ -462,15 +499,19 @@ class Mesh:
                             if d > panel_i.d_max+panel_j.d_max:
                                 break # There's no way for them to be touching then
 
-                            elif d<1e-8:
+                            elif d<1e-10:
 
                                 # Store first
                                 if v0 is None:
                                     v0 = vi
+                                    ii0 = ii
 
                                 # Initialize edge object
                                 else:
-                                    self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                    if ii-ii0 == 1:
+                                        self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                    else:
+                                        self.kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
                                     break
 
                 if self._verbose:
