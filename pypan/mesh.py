@@ -2,11 +2,14 @@
 
 import time
 import stl
+import vtk
 
 import numpy as np
+import pyvista as pv
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
+from vtk.util.numpy_support import vtk_to_numpy
 
 from .pp_math import vec_cross, vec_inner, vec_norm, norm
 from .helpers import OneLineProgress
@@ -133,71 +136,58 @@ class Mesh:
     def _load_vtk_mesh(self, vtk_file):
         # Loads mesh from PyPan file
 
-        # Read in file
-        with open(vtk_file, 'r') as mesh_file_handle:
-            lines = mesh_file_handle.read().splitlines()
+        # Get data from file
+        mesh_data = pv.read(vtk_file)
 
-        # Determine number of panels and edges
-        for i, line in enumerate(lines):
-            if line.split()[0] == "E":
-                self.N = i
-                break
-        N_edges = len(lines)-self.N
+        # Get vertices
+        self._vertices = np.copy(mesh_data.points)
 
-        # Initialize storage
+        # Initialze storage
+        self.N = mesh_data.n_faces
+        self.cp = np.array(mesh_data.get_array('panel_centroids'))
+        self.n = np.array(mesh_data.get_array('panel_normals'))
+        self.dA = np.array(mesh_data.get_array('panel_area'))
+
+        # Initialize panels
         self.panels = []
-        self.cp = np.zeros((self.N, 3))
-        self.n = np.zeros((self.N, 3))
-        self.dA = np.zeros(self.N)
-
-        # Loop through panels and initialize objects
+        self._panel_vertex_indices = []
+        curr_ind = 0
+        cell_info = mesh_data.faces
+        self._poly_list_size = len(cell_info)
         for i in range(self.N):
 
-            # Split line
-            info = lines[i].split()
+            # Determine number of edges and vertex indices
+            n = cell_info[curr_ind]
+            vertex_ind = cell_info[curr_ind+1:curr_ind+1+n]
+            self._panel_vertex_indices.append(vertex_ind)
+            vertices = self._vertices[vertex_ind]
 
-            # Initialize panel
-            if len(info) == 18:
-                panel = Tri(v0=np.array([float(info[1]), float(info[2]), float(info[3])]),
-                            v1=np.array([float(info[4]), float(info[5]), float(info[6])]),
-                            v2=np.array([float(info[7]), float(info[8]), float(info[9])]),
-                            n=np.array([float(info[10]), float(info[11]), float(info[12])]),
-                            v_c=np.array([float(info[13]), float(info[14]), float(info[15])]),
-                            A=float(info[16]),
-                            d_max=float(info[17]))
-            elif len(info) == 19:
-                panel = Quad(v0=np.array([float(info[1]), float(info[2]), float(info[3])]),
-                             v1=np.array([float(info[4]), float(info[5]), float(info[6])]),
-                             v2=np.array([float(info[7]), float(info[8]), float(info[9])]),
-                             v3=np.array([float(info[10]), float(info[11]), float(info[12])]),
-                             n=np.array([float(info[13]), float(info[14]), float(info[15])]),
-                             v_c=np.array([float(info[16]), float(info[17]), float(info[18])]),
-                             A=float(info[19]),
-                             d_max=float(info[20]))
+            # Initialize panel object
+            if n==3:
+                panel_obj = Tri(v0=vertices[0],
+                                v1=vertices[1],
+                                v2=vertices[2],
+                                n=self.n[i],
+                                v_c=self.cp[i],
+                                A=self.dA[i])
+            elif n==4:
+                panel_obj = Quad(v0=vertices[0],
+                                 v1=vertices[1],
+                                 v2=vertices[2],
+                                 v3=vertices[3],
+                                 n=self.n[i],
+                                 v_c=self.cp[i],
+                                 A=self.dA[i])
 
             # Check for zero area
-            if abs(panel.A)<1e-10:
+            if abs(panel_obj.A)<1e-10:
                 raise IOError("Panel {0} in the mesh has zero area.".format(i))
-
+            
             # Store
-            self.panels.append(panel)
-            self.cp[i] = panel.v_c
-            self.n[i] = panel.n
-            self.dA[i] = panel.A
+            self.panels.append(panel_obj)
 
-        # Loop through edges
-        self.kutta_edges = []
-        for i in range(N_edges):
-
-            # Split line
-            info = lines[i+self.N].split()
-
-            # Initialize edge
-            edge = KuttaEdge(np.array([float(info[1]), float(info[2]), float(info[3])]),
-                             np.array([float(info[4]), float(info[5]), float(info[6])]),
-                             [int(info[7]), int(info[8])])
-
-            self.kutta_edges.append(edge)
+            # Update index
+            curr_ind += n+1
 
 
     def _find_kutta_edges(self, **kwargs):
@@ -227,17 +217,18 @@ class Mesh:
 
             # Loop through possible combinations
             for i in i_panels:
+                panel_i = self.panels[i]
 
+                # Determine if we're adjacent
                 j_panels = np.argwhere(angle_greater[i]).flatten()
-                for j in j_panels:
+                for j in panel_i.adjacent_panels:
 
                     # Don't repeat
                     if j <= i:
                         continue
 
-                    # Determine if we're adjacent
-                    panel_i = self.panels[i]
-                    if j in panel_i.adjacent_panels:
+                    # Check angle
+                    if j in j_panels:
                         panel_j = self.panels[j]
                     
                         # Get edge vertices
@@ -276,8 +267,8 @@ class Mesh:
         # Checks for the vertex in the list; if there, the index is returned
 
         # Loop through list
-        for i in range(len(v_list)):
-            if np.allclose(v_list[i], vertex):
+        for i, v in enumerate(v_list):
+            if np.allclose(v, vertex):
                 return i
         
         return -1
@@ -379,12 +370,6 @@ class Mesh:
                 n_vert = panel.vertices.shape[1]
                 ind = [x%n_vert for x in range(n_vert+1)]
                 ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
-
-
-        # Plot centroids of adjacent panels
-        for i in self.panels[0].adjacent_panels:
-            panel = self.panels[i]
-            ax.plot(panel.v_c[0], panel.v_c[1], panel.v_c[2], 'g*')
         
         # Plot centroids
         if kwargs.get("centroids", True):

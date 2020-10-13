@@ -39,11 +39,6 @@ class Panel:
         if self.v_c is None:
             self._calc_centroid()
 
-        # Determine max side length
-        self.d_max = kwargs.get("d_max", None)
-        if self.d_max is None:
-            self.d_max = np.max(vec_norm(self.vertices-np.roll(self.vertices, 1, axis=0)))
-
         self.adjacent_panels = []
 
 
