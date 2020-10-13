@@ -159,7 +159,7 @@ class Mesh:
             # Determine number of edges and vertex indices
             n = cell_info[curr_ind]
             vertex_ind = cell_info[curr_ind+1:curr_ind+1+n]
-            self._panel_vertex_indices.append(vertex_ind)
+            self._panel_vertex_indices.append(list(vertex_ind))
             vertices = self._vertices[vertex_ind]
 
             # Initialize panel object
@@ -268,7 +268,7 @@ class Mesh:
 
         # Loop through list
         for i, v in enumerate(v_list):
-            if np.allclose(v, vertex):
+            if np.allclose(v, vertex, atol=1e-8):
                 return i
         
         return -1

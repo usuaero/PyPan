@@ -6,18 +6,22 @@ if __name__=="__main__":
     # Load mesh
     #mesh_file = "dev/21.ppmsh"
     #mesh_file = "dev/swept_wing_21_tapered.stl"
-    #mesh_file = "dev/swept_wing_21_rounded.stl"
     #mesh_file = "dev/swept_wing_21.stl"
-    mesh_file = "dev/swept_wing_21.vtk"
     #mesh_file = "dev/swept_wing_51.stl"
     #mesh_file = "dev/1250_polygon_sphere_100mm.STL"
 
     #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
-    #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", verbose=True)
-    my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
 
-    my_mesh.plot(centroids=False, panels=True)
-    #my_mesh.export_vtk("dev/swept_wing_21.vtk")
+    # Parse STL
+    mesh_file = "dev/swept_wing_21_rounded.stl"
+    my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
+    my_mesh.plot(centroids=False)
+    my_mesh.export_vtk("dev/swept_wing_21.vtk")
+
+    # Load exported VTK and get Kutta edges
+    mesh_file = "dev/swept_wing_21.vtk"
+    my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
+    my_mesh.plot(centroids=False)
 
     ## Initialize solver
     #my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
