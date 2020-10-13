@@ -15,20 +15,20 @@ if __name__=="__main__":
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", verbose=True)
     #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="pypan", verbose=True)
 
-    #my_mesh.plot(centroids=False, panels=True)
-    #my_mesh.export_pypan_mesh("21.ppmsh")
+    my_mesh.plot(centroids=False, panels=True)
+    my_mesh.export_vtk("dev/1250_sphere_mesh.vtk")
 
-    # Initialize solver
-    my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
+    ## Initialize solver
+    #my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
-    # Set condition
-    my_solver.set_condition(V_inf=[0.0, 0.0, -100.0], rho=0.0023769)
+    ## Set condition
+    #my_solver.set_condition(V_inf=[0.0, 0.0, -100.0], rho=0.0023769)
 
-    # Solve
-    F = my_solver.solve(verbose=True, lifting=False)
-    print("F: ", F)
-    print("Max C_P: ", np.max(my_solver._C_P))
-    print("Min C_P: ", np.min(my_solver._C_P))
+    ## Solve
+    #F = my_solver.solve(verbose=True, lifting=False)
+    #print("F: ", F)
+    #print("Max C_P: ", np.max(my_solver._C_P))
+    #print("Min C_P: ", np.min(my_solver._C_P))
 
-    # Export VTK
-    my_solver.export_vtk("sphere_1250.vtk")
+    ## Export VTK
+    #my_solver.export_vtk("sphere_1250.vtk")

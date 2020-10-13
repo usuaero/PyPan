@@ -1,2 +1,2 @@
-from .geometry import Mesh
+from .mesh import Mesh
 from .solvers import VortexRingSolver
