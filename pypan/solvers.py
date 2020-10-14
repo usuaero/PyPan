@@ -3,6 +3,7 @@
 import time
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .pp_math import vec_inner, vec_norm, norm
 
@@ -139,6 +140,12 @@ class Solver:
             for v in self._v:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(v[0], v[1], v[2]), file=export_handle)
 
+            # Normal velocity
+            print("SCALARS normal_velocity float", file=export_handle)
+            print("LOOKUP_TABLE default", file=export_handle)
+            for v_n in vec_inner(self._v, self._n):
+                print("{0:<20.12}".format(v_n), file=export_handle)
+
 
 class VortexRingSolver(Solver):
     """Vortex ring solver.
@@ -269,11 +276,6 @@ class VortexRingSolver(Solver):
             print("    Max singular value of A: {0}".format(np.max(s_a)))
             print("    Min singular value of A: {0}".format(np.min(s_a)))
 
-        # Get circulation gradient
-        if verbose: print("\nDetermining circulation gradient...", end='', flush=True)
-        self._grad_gamma = self._mesh.get_gradient(self._gamma)
-        if verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-
         # Determine velocities at each control point
         if verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
@@ -282,6 +284,7 @@ class VortexRingSolver(Solver):
             self._v += np.sum(self._vortex_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
 
         # Include vortex sheet principal value in the velocity
+        self._grad_gamma = self._mesh.get_gradient(self._gamma)
         self._v -= 0.5*self._grad_gamma
 
         # Determine coefficients of pressure

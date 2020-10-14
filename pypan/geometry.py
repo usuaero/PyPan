@@ -159,8 +159,7 @@ class Tri(Panel):
                      self.v_c[0],
                      self.v_c[1],
                      self.v_c[2],
-                     self.A,
-                     self.d_max)
+                     self.A)
         return s
 
 

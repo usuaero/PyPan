@@ -65,8 +65,9 @@ class Mesh:
             end_time = time.time()
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
-        # Create panel vertex mapping; not needed for VTK because this is inherent to the file structure
-        if mesh_type != "VTK":
+        # Create panel vertex mapping
+        # VTK does this inherently; STL has a faster way than the brute-force method
+        if mesh_type != "VTK" and mesh_type != "STL":
             self._determine_panel_vertex_mapping()
 
         # Determine panel adjacency mapping
@@ -131,6 +132,13 @@ class Mesh:
             self.cp[i] = panel.v_c
             self.n[i] = panel.n
             self.dA[i] = panel.A
+
+        # Get vertex list
+        raw_vertices = np.concatenate((raw_mesh.v0, raw_mesh.v1, raw_mesh.v2))
+        self._vertices, inverse_indices = np.unique(raw_vertices, return_inverse=True, axis=0)
+        self._panel_vertex_indices = []
+        for i in range(self.N):
+            self._panel_vertex_indices.append([3, *inverse_indices[i::self.N]])
 
     
     def _load_vtk_mesh(self, vtk_file):
@@ -339,6 +347,7 @@ class Mesh:
                     if i_vert in self._panel_vertex_indices[j][1:] and j not in panel_i.adjacent_panels:
                         panel_i.adjacent_panels.append(j)
                         panel_j.adjacent_panels.append(i)
+                        break
 
             if self._verbose:
                 prog.display()
@@ -370,6 +379,13 @@ class Mesh:
                 n_vert = panel.vertices.shape[1]
                 ind = [x%n_vert for x in range(n_vert+1)]
                 ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
+        
+        # Plot adjacency
+        ind = 250
+        neighbors = self.panels[ind].adjacent_panels
+        ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
+        for i in neighbors:
+            ax.plot(self.panels[i].v_c[0], self.panels[i].v_c[1], self.panels[i].v_c[2], 'g.')
         
         # Plot centroids
         if kwargs.get("centroids", True):
