@@ -1,3 +1,4 @@
+import copy
 import pypan as pp
 import numpy as np
 
@@ -15,13 +16,23 @@ if __name__=="__main__":
     # Parse STL
     mesh_file = "dev/swept_wing_21_rounded.stl"
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
-    my_mesh.plot(centroids=False)
+    #my_mesh.plot(centroids=False)
     my_mesh.export_vtk("dev/swept_wing_21.vtk")
+    mapping1 = copy.copy(my_mesh._panel_vertex_indices)
 
     # Load exported VTK and get Kutta edges
     mesh_file = "dev/swept_wing_21.vtk"
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
-    my_mesh.plot(centroids=False)
+    #my_mesh.plot(centroids=False)
+    mapping2 = copy.copy(my_mesh._panel_vertex_indices)
+
+    # Compare mappings
+    for ind1, ind2 in zip(mapping1, mapping2):
+        for i1, i2 in zip(ind1, ind2):
+            if i1!=i2:
+                print("Mismatch!")
+                print(i1)
+                print(i2)
 
     ## Initialize solver
     #my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)

@@ -159,7 +159,7 @@ class Mesh:
             # Determine number of edges and vertex indices
             n = cell_info[curr_ind]
             vertex_ind = cell_info[curr_ind+1:curr_ind+1+n]
-            self._panel_vertex_indices.append(list(vertex_ind))
+            self._panel_vertex_indices.append([n, *list(vertex_ind)])
             vertices = self._vertices[vertex_ind]
 
             # Initialize panel object
