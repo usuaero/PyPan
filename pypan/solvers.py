@@ -287,9 +287,6 @@ class VortexRingSolver(Solver):
             print("    Max singular value of A: {0}".format(np.max(s_a)))
             print("    Min singular value of A: {0}".format(np.min(s_a)))
 
-        res = np.matmul(A, self._gamma)-b
-        print(np.max(np.abs(res)))
-
         if verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
 
