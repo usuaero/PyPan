@@ -146,6 +146,12 @@ class Solver:
             for v_n in vec_inner(self._v, self._n):
                 print("{0:<20.12}".format(v_n), file=export_handle)
 
+            # Normal freestream velocity
+            print("SCALARS normal_freestream_velocity float", file=export_handle)
+            print("LOOKUP_TABLE default", file=export_handle)
+            for v_n in self._b:
+                print("{0:<20.12}".format(v_n), file=export_handle)
+
 
 class VortexRingSolver(Solver):
     """Vortex ring solver.
@@ -183,8 +189,13 @@ class VortexRingSolver(Solver):
         for i, panel in enumerate(self._mesh.panels):
             self._panel_influence_matrix[:,i] = panel.get_ring_influence(self._cp)
 
+        # Create velocity determination matrix (diagonal elements set to zero to use gradient calculation to
+        # determine the tangential velocity induced by a panel at its own centroid)
+        self._panel_vel_matrix = np.copy(self._panel_influence_matrix)
+        self._panel_vel_matrix[np.diag_indices(self._N_panels)] = 0.0
+
         # Determine panel part of A matrix
-        self._A_panels = vec_inner(self._panel_influence_matrix, self._n[:,np.newaxis])
+        self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n)
         if verbose: print("Finished", flush=True)
 
 
@@ -240,7 +251,7 @@ class VortexRingSolver(Solver):
                 self._vortex_influence_matrix[:,p_ind[1]] = V
 
             # Determine panel part of A matrix
-            self._A_vortices = vec_inner(self._panel_influence_matrix, self._n[:,np.newaxis])
+            self._A_vortices = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n) # WRONG!!!!!!
             if verbose: print("Finished", flush=True)
 
             if verbose: print("\nSolving lifting case...", end='', flush=True)
@@ -276,16 +287,22 @@ class VortexRingSolver(Solver):
             print("    Max singular value of A: {0}".format(np.max(s_a)))
             print("    Min singular value of A: {0}".format(np.min(s_a)))
 
-        # Determine velocities at each control point
+        res = np.matmul(A, self._gamma)-b
+        print(np.max(np.abs(res)))
+
         if verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
-        self._v = self._v_inf[np.newaxis,:]+np.sum(self._panel_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
-        if lifting:
-            self._v += np.sum(self._vortex_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
+
+        # Determine velocities at each control point induced by panels
+        self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._gamma)
 
         # Include vortex sheet principal value in the velocity
         self._grad_gamma = self._mesh.get_gradient(self._gamma)
         self._v -= 0.5*self._grad_gamma
+
+        # Determine velocities induced by horseshoe vortices
+        if lifting:
+            self._v += np.sum(self._vortex_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)

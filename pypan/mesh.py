@@ -381,7 +381,7 @@ class Mesh:
                 ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
         
         # Plot adjacency
-        ind = 250
+        ind = 0
         neighbors = self.panels[ind].adjacent_panels
         ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
         for i in neighbors:
