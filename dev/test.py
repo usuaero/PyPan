@@ -9,15 +9,15 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/swept_wing_21.stl"
     #mesh_file = "dev/meshes/swept_wing_51.stl"
     #mesh_file = "dev/meshes/1250_polygon_sphere_100mm.STL"
+    mesh_file = "dev/meshes/1250_sphere.vtk"
     #mesh_file = "dev/meshes/swept_wing_21_rounded.stl"
-    mesh_file = "dev/meshes/swept_wing_21.vtk"
+    #mesh_file = "dev/meshes/swept_wing_21.vtk"
 
-    #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
 
-    #my_mesh.export_vtk("dev/swept_wing_21.vtk")
-    my_mesh.plot(centroids=False)
+    #my_mesh.export_vtk("dev/meshes/1250_sphere.vtk")
+    #my_mesh.plot(centroids=False)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
@@ -32,4 +32,4 @@ if __name__=="__main__":
     print("Min C_P: ", np.min(my_solver._C_P))
 
     # Export VTK
-    my_solver.export_vtk("dev/results/swept_wing_21.vtk")
+    my_solver.export_vtk("dev/results/1250_sphere.vtk")

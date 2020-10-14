@@ -454,3 +454,40 @@ class Mesh:
         its vertices in the first list.
         """
         return self._vertices, self._panel_vertex_indices
+
+
+    def get_gradient(self, phi):
+        """Returns a least-squares estimate of the gradient of phi at each panel
+        centroid. Phi should be given as the value of a scalar function at each
+        panel centroid, in the correct order.
+
+        Parameters
+        ----------
+        phi : ndarray
+            Value of the scalar field at each panel centroid.
+
+        Returns
+        -------
+        grad_phi : ndarray
+            The gradient of phi at each panel centroid wrt the Cartesian axes.
+        """
+
+        # Initialize
+        grad_phi = np.zeros((self.N, 3))
+
+        # Loop through panels
+        for i, panel in enumerate(self.panels):
+
+            # Get centroids of neighboring panels
+            neighbors = panel.adjacent_panels
+            neighbor_centroids = self.cp[neighbors]
+            neighbor_phis = phi[neighbors]
+
+            # Get A and b
+            A = neighbor_centroids-panel.v_c[np.newaxis,:]
+            b = neighbor_phis-phi[i]
+
+            # Solve
+            grad_phi[i],_,_,_ = np.linalg.lstsq(A, b)
+
+        return grad_phi

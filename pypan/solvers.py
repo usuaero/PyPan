@@ -112,7 +112,7 @@ class Solver:
             # Write panel polygons
             print("POLYGONS {0} {1}".format(self._N_panels, size), file=export_handle)
             for panel in panel_indices:
-                print(" ".join(panel), file=export_handle)
+                print(" ".join([str(i) for i in panel]), file=export_handle)
 
             # Write flow results
             print("CELL_DATA {0}".format(self._N_panels), file=export_handle)
@@ -134,13 +134,10 @@ class Solver:
             for n in self._n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 
-
-    def _get_principal_of_induced_velocity(self):
-        # Determines the velocity which should be induced at each panel, equal to half the gradient of the circulation
-
-        # Determine velocity direction
-        u = self._v/vec_norm(self._v)[:,np.newaxis]
-        return np.zeros((self._N_panels, 3))
+            # Velocity
+            print("VECTORS velocity float", file=export_handle)
+            for v in self._v:
+                print("{0:<20.12} {1:<20.12} {2:<20.12}".format(v[0], v[1], v[2]), file=export_handle)
 
 
 class VortexRingSolver(Solver):
@@ -272,6 +269,11 @@ class VortexRingSolver(Solver):
             print("    Max singular value of A: {0}".format(np.max(s_a)))
             print("    Min singular value of A: {0}".format(np.min(s_a)))
 
+        # Get circulation gradient
+        if verbose: print("\nDetermining circulation gradient...", end='', flush=True)
+        self._grad_gamma = self._mesh.get_gradient(self._gamma)
+        if verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
+
         # Determine velocities at each control point
         if verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
@@ -280,7 +282,7 @@ class VortexRingSolver(Solver):
             self._v += np.sum(self._vortex_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
 
         # Include vortex sheet principal value in the velocity
-        self._v += self._get_principal_of_induced_velocity()
+        self._v -= 0.5*self._grad_gamma
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)
