@@ -392,7 +392,9 @@ class Mesh:
 
 
     def export_vtk(self, filename):
-        """Exports the mesh to a VTK file.
+        """Exports the mesh to a VTK file. Please note this exports the mesh only.
+        There is an export_vtk() method within the Solver class which will export
+        the mesh along with the flow data.
 
         Parameters
         ----------
