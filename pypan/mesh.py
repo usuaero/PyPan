@@ -74,8 +74,7 @@ class Mesh:
         self._determine_panel_adjacency_mapping()
 
         # Find Kutta edges
-        if kwargs.get("kutta_angle", None) is not None:
-            self._find_kutta_edges(**kwargs)
+        self._find_kutta_edges(**kwargs)
 
         # Display mesh information
         if self._verbose:

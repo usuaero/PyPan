@@ -198,6 +198,9 @@ class VortexRingSolver(Solver):
         self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n)
         if verbose: print("Finished", flush=True)
 
+        # Determine projection matrix onto plane of each panel
+        self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._n[:,:,np.newaxis], self._n[:,np.newaxis,:])
+
 
     def set_condition(self, **kwargs):
         """Sets the atmospheric conditions for the computation.
@@ -295,7 +298,7 @@ class VortexRingSolver(Solver):
 
         # Include vortex sheet principal value in the velocity
         self._grad_gamma = self._mesh.get_gradient(self._gamma)
-        self._v -= 0.5*self._grad_gamma
+        self._v -= 0.5*np.matmul(self._P_surf, self._grad_gamma[:,:,np.newaxis]).reshape(self._v.shape)
 
         # Determine velocities induced by horseshoe vortices
         if lifting:
@@ -306,8 +309,17 @@ class VortexRingSolver(Solver):
         self._C_P = 1.0-(self._V*self._V)/self._V_inf_2
         end_time = time.time()
 
-        # Determine forces
+        # Determine force acting on each panel
         self._dF = (self._rho*self._V_inf_2*self._dA*self._C_P)[:,np.newaxis]*self._n
-        self._F = np.sum(self._dF, axis=0).flatten()
+
+        # Sum force components starting with the smallest magnitudes
+        self._F = np.zeros(3)
+        x_sorted_ind = np.argsort(self._dF[:,0])
+        self._F[0] = np.sum(self._dF[x_sorted_ind])
+        y_sorted_ind = np.argsort(self._dF[:,1])
+        self._F[1] = np.sum(self._dF[y_sorted_ind])
+        z_sorted_ind = np.argsort(self._dF[:,2])
+        self._F[2] = np.sum(self._dF[z_sorted_ind])
+        #self._F = np.sum(self._dF, axis=0).flatten()
         if verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
         return self._F
