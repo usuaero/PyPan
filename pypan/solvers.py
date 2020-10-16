@@ -1,6 +1,7 @@
 """Defines classes for solving potential flow scenarios."""
 
 import time
+import os
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -153,6 +154,80 @@ class Solver:
                 print("{0:<20.12}".format(v_n), file=export_handle)
 
 
+    def alpha_sweep(self, **kwargs):
+        """Sweeps the solver through a range of angle of attack. Note this will always solve the lifting case.
+
+        Parameters
+        ----------
+        V_inf : float
+            Freestream velocity magnitude.
+
+        alpha_lims : list
+            Limits in angle of attack for the sweep, given in degrees.
+
+        N_alpha : int, optional
+            Number of angles of attack to solve within the range specified
+            by alpha_lims. Defaults to 10.
+
+        rho : float
+            Freestream atmospheric density.
+
+        results_dir : str, optional
+            File path to a directory where the results at each step in alpha can be
+            stored. If not given, the results will not be stored. Should end with '/'.
+
+        Returns
+        -------
+        alphas : ndarray
+            Angles of attack for the sweep, given in degrees.
+
+        F : ndarray
+            An array of the force vector at each angle of attack, given in mesh coordinates.
+
+        F_w : ndarray
+            An array of the force vector at each angle of attack, given in wind coordinates.
+        """
+
+        # Determine alpha range
+        a_lims = kwargs["alpha_lims"]
+        N_a = kwargs.get("N_alpha", 10)
+        alphas = np.linspace(np.radians(a_lims[0]), np.radians(a_lims[1]), N_a)
+        C_a = np.cos(alphas)
+        S_a = np.sin(alphas)
+
+        # Get other kwargs
+        V_inf = kwargs.pop("V_inf")
+        results_dir = kwargs.get("results_dir", None)
+        if not os.path.exists(results_dir):
+            os.mkdir(results_dir)
+
+        # Initialize storage
+        F = np.zeros((N_a, 3))
+
+        # Loop through alphas
+        for i, a in enumerate(alphas):
+
+            # Determine freestream vector
+            V = [-V_inf*C_a[i], 0.0, -V_inf*S_a[i]]
+
+            # Set condition
+            self.set_condition(V_inf=V, **kwargs)
+
+            # Solve
+            F[i] = self.solve(lifting=True)
+
+            # Export
+            if results_dir is not None:
+                self.export_vtk(results_dir+"a_{0}.vtk".format(np.degrees(a)))
+
+        # Convert to wind coordinates
+        F_w = np.zeros((N_a, 3))
+        F_w[:,0] = -C_a*F[:,0]+S_a*F[:,2]
+        F_w[:,2] = -S_a*F[:,0]-C_a*F[:,2]
+
+        return np.degrees(alphas), F, F_w
+
+
 class VortexRingSolver(Solver):
     """Vortex ring solver.
 
@@ -249,12 +324,12 @@ class VortexRingSolver(Solver):
             self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
             for edge in self._mesh.kutta_edges:
                 p_ind = edge.panel_indices
-                V = -edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
+                V = edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
                 self._vortex_influence_matrix[:,p_ind[0]] = V
-                self._vortex_influence_matrix[:,p_ind[1]] = V
+                self._vortex_influence_matrix[:,p_ind[1]] = -V
 
             # Determine panel part of A matrix
-            self._A_vortices = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n) # WRONG!!!!!!
+            self._A_vortices = np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
             if verbose: print("Finished", flush=True)
 
             if verbose: print("\nSolving lifting case...", end='', flush=True)
@@ -283,8 +358,10 @@ class VortexRingSolver(Solver):
         end_time = time.time()
         if verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-            if rank >= self._N_panels:
+            try:
                 print("    Maximum residual: {0}".format(np.max(res)))
+            except:
+                pass
             print("    Circulation sum: {0}".format(np.sum(self._gamma)))
             print("    Rank of A matrix: {0}".format(rank))
             print("    Max singular value of A: {0}".format(np.max(s_a)))
@@ -315,11 +392,11 @@ class VortexRingSolver(Solver):
         # Sum force components starting with the smallest magnitudes
         self._F = np.zeros(3)
         x_sorted_ind = np.argsort(self._dF[:,0])
-        self._F[0] = np.sum(self._dF[x_sorted_ind])
+        self._F[0] = np.sum(self._dF[x_sorted_ind,0])
         y_sorted_ind = np.argsort(self._dF[:,1])
-        self._F[1] = np.sum(self._dF[y_sorted_ind])
+        self._F[1] = np.sum(self._dF[y_sorted_ind,1])
         z_sorted_ind = np.argsort(self._dF[:,2])
-        self._F[2] = np.sum(self._dF[z_sorted_ind])
+        self._F[2] = np.sum(self._dF[z_sorted_ind,2])
         #self._F = np.sum(self._dF, axis=0).flatten()
         if verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
         return self._F

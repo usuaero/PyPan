@@ -24,7 +24,9 @@ class Mesh:
         Name of the mesh.
 
     mesh_file : str
-        File path to the mesh file.
+        File path to the mesh file. Please note that PyPan assumes the panel
+        normals all point outward. Failure to meet this condition can produce 
+        erroneous results.
 
     mesh_file_type : str
         The type of mesh file being loaded. Can be "STL" or "VTK".
@@ -252,7 +254,7 @@ class Mesh:
                                         v0 = vi
                                         ii0 = ii
 
-                                    # Initialize edge object
+                                    # Initialize edge object; vertices are stored in the same order as the first panel
                                     else:
                                         if ii-ii0 == 1: # Order is important for definition of circulation
                                             self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
