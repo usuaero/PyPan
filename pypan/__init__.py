@@ -1,2 +1,3 @@
 from .mesh import Mesh
-from .solvers import VortexRingSolver
+from .vortex_ring_solver import VortexRingSolver
+from .newtons_solver import NewtonsSolver, ModifiedNewtonsSolver
