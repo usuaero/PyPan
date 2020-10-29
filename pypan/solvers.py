@@ -231,9 +231,9 @@ class Solver:
 
         # Convert to wind coordinates
         F_w = np.zeros((N_a, 3))
-        F_w[:,0] = -C_a*F[:,0]+S_a*F[:,2]
+        F_w[:,0] = -C_a*F[:,0]-S_a*F[:,2]
         F_w[:,1] = F[:,1]
-        F_w[:,2] = -S_a*F[:,0]-C_a*F[:,2]
+        F_w[:,2] = S_a*F[:,0]-C_a*F[:,2]
 
         return np.degrees(alphas), F, F_w
 
