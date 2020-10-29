@@ -87,8 +87,8 @@ class VortexRingSolver(Solver):
             for edge in self._mesh.kutta_edges:
                 p_ind = edge.panel_indices
                 V = edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
-                self._vortex_influence_matrix[:,p_ind[0]] = V
-                self._vortex_influence_matrix[:,p_ind[1]] = -V
+                self._vortex_influence_matrix[:,p_ind[0]] = -V
+                self._vortex_influence_matrix[:,p_ind[1]] = V
 
             # Determine panel part of A matrix
             self._A_vortices = np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
@@ -149,9 +149,9 @@ class VortexRingSolver(Solver):
         end_time = time.time()
 
         # Determine force acting on each panel
-        self._dF = (self._rho*self._V_inf_2*self._dA*self._C_P)[:,np.newaxis]*self._n
+        self._dF = -(self._rho*self._V_inf_2*self._dA*self._C_P)[:,np.newaxis]*self._n
 
-        # Sum force components starting with the smallest magnitudes
+        # Sum force components starting with the smallest magnitudes (for numerical stability)
         self._F = np.zeros(3)
         x_sorted_ind = np.argsort(self._dF[:,0])
         self._F[0] = np.sum(self._dF[x_sorted_ind,0])
@@ -159,6 +159,5 @@ class VortexRingSolver(Solver):
         self._F[1] = np.sum(self._dF[y_sorted_ind,1])
         z_sorted_ind = np.argsort(self._dF[:,2])
         self._F[2] = np.sum(self._dF[z_sorted_ind,2])
-        #self._F = np.sum(self._dF, axis=0).flatten()
         if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
         return self._F
