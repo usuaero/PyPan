@@ -82,6 +82,7 @@ class Mesh:
         if self._verbose:
             print("\nMesh Parameters:")
             print("    # panels: {0}".format(self.N))
+            print("    # vertices: {0}".format(self._vertices.shape[0]))
             if hasattr(self, "N_edges"):
                 print("    # Kutta edges: {0}".format(self.N_edges))
 
@@ -381,12 +382,12 @@ class Mesh:
                 ind = [x%n_vert for x in range(n_vert+1)]
                 ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
         
-        # Plot adjacency
-        ind = 0
-        neighbors = self.panels[ind].adjacent_panels
-        ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
-        for i in neighbors:
-            ax.plot(self.panels[i].v_c[0], self.panels[i].v_c[1], self.panels[i].v_c[2], 'g.')
+        ## Plot adjacency
+        #ind = 0
+        #neighbors = self.panels[ind].adjacent_panels
+        #ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
+        #for i in neighbors:
+        #    ax.plot(self.panels[i].v_c[0], self.panels[i].v_c[1], self.panels[i].v_c[2], 'g.')
         
         # Plot centroids
         if kwargs.get("centroids", True):
