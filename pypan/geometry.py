@@ -39,7 +39,10 @@ class Panel:
         if self.v_c is None:
             self._calc_centroid()
 
+        # Initialize some storage
         self.adjacent_panels = []
+        self.adjacent_panels_across_kutta_edge = []
+        self.adjacent_panels_not_across_kutta_edge = []
 
 
     def _calc_normal(self):

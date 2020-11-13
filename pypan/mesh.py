@@ -269,6 +269,14 @@ class Mesh:
 
             self.N_edges = len(self.kutta_edges)
 
+            # Store adjacent panels not across edge
+            for i, panel in enumerate(self.panels):
+                for j in panel.adjacent_panels:
+                    if angle_greater[i,j]:
+                        panel.adjacent_panels_across_kutta_edge.append(j)
+                    else:
+                        panel.adjacent_panels_not_across_kutta_edge.append(j)
+
         else:
             self.N_edges = 0
 
@@ -497,7 +505,7 @@ class Mesh:
         for i, panel in enumerate(self.panels):
 
             # Get centroids of neighboring panels
-            neighbors = panel.adjacent_panels
+            neighbors = panel.adjacent_panels_not_across_kutta_edge
             neighbor_centroids = self.cp[neighbors]
             neighbor_phis = phi[neighbors]
 
