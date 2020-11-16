@@ -24,10 +24,9 @@ class Panel:
         if self.n is None:
             self._calc_normal()
         else:
-            try:
+            # Check normalization
+            if norm(self.n) != 0.0:
                 self.n = self.n/norm(self.n)
-            except RuntimeWarning:
-                self._calc_normal()
 
         # Determine area
         self.A = kwargs.get("A", None)

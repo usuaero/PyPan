@@ -17,24 +17,24 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/1250_sphere.vtk"
     #mesh_file = "dev/meshes/swept_wing_21_rounded.stl"
     #mesh_file = "dev/meshes/swept_wing_21.vtk"
-    #mesh_file = "dev/meshes/F16_Original_withFins.stl"
-    mesh_file = "dev/meshes/swept_wing_30_span_31_sec_10_tip.stl"
+    mesh_file = "dev/meshes/F16_Original_withFins.stl"
+    #mesh_file = "dev/meshes/swept_wing_30_span_31_sec_10_tip.stl"
     start_time = time.time()
 
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
 
-    #my_mesh.export_vtk("dev/meshes/5000_sphere.vtk")
+    my_mesh.export_vtk(mesh_file.replace(".stl", ".vtk").replace(".STL", ".vtk"))
     #my_mesh.plot(centroids=False)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
+    my_solver.set_condition(V_inf=[-100.0, 0.0, 0.0], rho=0.0023769)
 
     # Solve
-    F = my_solver.solve(verbose=True, lifting=True)
+    F = my_solver.solve(verbose=True, lifting=False)
     print("F: ", F)
     print("Max C_P: ", np.max(my_solver._C_P))
     print("Min C_P: ", np.min(my_solver._C_P))

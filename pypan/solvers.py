@@ -22,9 +22,9 @@ class Solver:
         if self._verbose: print("\nParsing mesh into solver...", end='', flush=True)
         self._N_panels = self._mesh.N
         self._N_edges = self._mesh.N_edges
-        self._cp = np.copy(self._mesh.cp)
-        self._n = np.copy(self._mesh.n)
-        self._dA = np.copy(self._mesh.dA)
+        self._cp = self._mesh.cp
+        self._n = self._mesh.n
+        self._dA = self._mesh.dA
         if self._verbose: print("Finished", flush=True)
 
 

@@ -3,6 +3,7 @@
 import time
 import stl
 import vtk
+import warnings
 
 import numpy as np
 import pyvista as pv
@@ -110,14 +111,20 @@ class Mesh:
         raw_mesh = stl.mesh.Mesh.from_file(stl_file)
 
         # Initialize storage
-        self.N = raw_mesh.v0.shape[0]
-        self.panels = np.empty(self.N, dtype=Tri)
-        self.cp = np.zeros((self.N, 3))
-        self.n = np.zeros((self.N, 3))
-        self.dA = np.zeros(self.N)
+        N = raw_mesh.v0.shape[0]
+        self.N = N
+        self.panels = []
+        bad_facets = []
 
         # Loop through panels and initialize objects
-        for i in range(self.N):
+        for i in range(N):
+
+            # Check for finite area
+            if norm(raw_mesh.normals[i]) == 0.0:
+                self.N -= 1
+                warnings.warn("Panel {0} has zero area. Skipping...".format(i))
+                bad_facets.append(i)
+                continue
 
             # Initialize
             panel = Tri(v0=raw_mesh.v0[i],
@@ -125,18 +132,22 @@ class Mesh:
                         v2=raw_mesh.v2[i],
                         n=raw_mesh.normals[i])
 
-            # Check for zero area
-            if abs(panel.A)<1e-10:
-                raise IOError("Panel {0} in the mesh has zero area.".format(i))
+            self.panels.append(panel)
 
-            # Store
-            self.panels[i] = panel
-            self.cp[i] = panel.v_c
-            self.n[i] = panel.n
-            self.dA[i] = panel.A
+        self.panels = np.array(self.panels)
+
+        # Store panel information
+        self.cp = np.zeros((self.N, 3))
+        self.n = np.zeros((self.N, 3))
+        self.dA = np.zeros(self.N)
+        for i in range(self.N):
+            self.cp[i] = self.panels[i].v_c
+            self.n[i] = self.panels[i].n
+            self.dA[i] = self.panels[i].A
 
         # Get vertex list
-        raw_vertices = np.concatenate((raw_mesh.v0, raw_mesh.v1, raw_mesh.v2))
+        good_facets = [i for i in range(N) if i not in bad_facets]
+        raw_vertices = np.concatenate((raw_mesh.v0[good_facets], raw_mesh.v1[good_facets], raw_mesh.v2[good_facets]))
         self._vertices, inverse_indices = np.unique(raw_vertices, return_inverse=True, axis=0)
         self._panel_vertex_indices = []
         for i in range(self.N):
@@ -444,14 +455,20 @@ class Mesh:
             print("DATASET POLYDATA", file=export_handle)
 
             # Write vertices
-            print("POINTS {0} float".format(self._vertices.shape[0]), file=export_handle)
-            for vertex in self._vertices:
+            vertices, panel_indices = self.get_vtk_data()
+            print("POINTS {0} float".format(len(vertices)), file=export_handle)
+            for vertex in vertices:
                 print("{0:<20.12}{1:<20.12}{2:<20.12}".format(*vertex), file=export_handle)
 
+            # Determine polygon list size
+            size = 0
+            for pi in panel_indices:
+                size += len(pi)
+
             # Write panel polygons
-            print("POLYGONS {0} {1}".format(self.N, self._poly_list_size), file=export_handle)
-            for panel_indices in self._panel_vertex_indices:
-                print(" ".join([str(ind) for ind in panel_indices]), file=export_handle)
+            print("POLYGONS {0} {1}".format(self.N, size), file=export_handle)
+            for panel in panel_indices:
+                print(" ".join([str(i) for i in panel]), file=export_handle)
 
             # Write Kutta edges
 

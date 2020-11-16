@@ -5,6 +5,7 @@ import numpy as np
 
 from .solvers import Solver
 from .pp_math import norm, vec_norm, vec_inner
+from .helpers import OneLineProgress
 
 class VortexRingSolver(Solver):
     """Vortex ring solver.
@@ -20,20 +21,19 @@ class VortexRingSolver(Solver):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+        if self._verbose:
+            print()
+            prog = OneLineProgress(self._N_panels, msg="Determining panel influence matrix")
+
         # Create panel influence matrix; first index is the influenced panel, second is the influencing panel
-        if self._verbose: print("\nDetermining panel influence matrix...", end='', flush=True)
         self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
         for i, panel in enumerate(self._mesh.panels):
             self._panel_influence_matrix[:,i] = panel.get_ring_influence(self._cp)
-
-        # Create velocity determination matrix (diagonal elements set to zero to use gradient calculation to
-        # determine the tangential velocity induced by a panel at its own centroid)
-        self._panel_vel_matrix = np.copy(self._panel_influence_matrix)
-        self._panel_vel_matrix[np.diag_indices(self._N_panels)] = 0.0
+            if self._verbose:
+                prog.display()
 
         # Determine panel part of A matrix
         self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n)
-        if self._verbose: print("Finished", flush=True)
 
         # Determine projection matrix onto plane of each panel
         self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._n[:,:,np.newaxis], self._n[:,np.newaxis,:])
@@ -82,17 +82,20 @@ class VortexRingSolver(Solver):
                 raise RuntimeError("Lifting case cannot be solved for a geometry with no Kutta edges.")
 
             # Create horseshoe vortex influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel
-            if self._verbose: print("\nDetermining horseshoe vortex influences...", end='', flush=True)
+            if self._verbose:
+                print()
+                prog = OneLineProgress(self._mesh.N_edges, "Determining wake influence")
             self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
             for edge in self._mesh.kutta_edges:
                 p_ind = edge.panel_indices
                 V = edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
                 self._vortex_influence_matrix[:,p_ind[0]] = -V
                 self._vortex_influence_matrix[:,p_ind[1]] = V
+                if self._verbose:
+                    prog.display()
 
             # Determine panel part of A matrix
             self._A_vortices = np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
-            if self._verbose: print("Finished", flush=True)
 
             if self._verbose: print("\nSolving lifting case...", end='', flush=True)
 
