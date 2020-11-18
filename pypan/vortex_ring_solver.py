@@ -2,6 +2,7 @@
 import time
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .solvers import Solver
 from .pp_math import norm, vec_norm, vec_inner
@@ -94,16 +95,13 @@ class VortexRingSolver(Solver):
                 if self._verbose:
                     prog.display()
 
-            # Determine panel part of A matrix
-            self._A_vortices = np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
+            # Specify A matrix
+            A = self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
 
             if self._verbose: print("\nSolving lifting case...", end='', flush=True)
 
-            # Specify A matrix
-            A = self._A_panels+self._A_vortices
-
             # Specify b vector
-            b = np.copy(self._b)
+            b = self._b
 
         # Nonlifting
         else:
@@ -120,6 +118,12 @@ class VortexRingSolver(Solver):
 
         # Solve system using least-squares approach
         self._gamma, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+        #self._gamma, res, rank, s_a = np.linalg.lstsq(self._A_panels, self._b, rcond=None)
+        #plt.figure()
+        #plt.plot(s_a)
+        #plt.show()
+        #rank = np.linalg.matrix_rank(self._A_panels)
+        #self._gamma = np.linalg.solve(self._A_panels, self._b)
         end_time = time.time()
         if self._verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
@@ -129,8 +133,8 @@ class VortexRingSolver(Solver):
                 pass
             print("    Circulation sum: {0}".format(np.sum(self._gamma)))
             print("    Rank of A matrix: {0}".format(rank))
-            print("    Max singular value of A: {0}".format(np.max(s_a)))
-            print("    Min singular value of A: {0}".format(np.min(s_a)))
+            ##print("    Max singular value of A: {0}".format(np.max(s_a)))
+            #print("    Min singular value of A: {0}".format(np.min(s_a)))
 
         if self._verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
