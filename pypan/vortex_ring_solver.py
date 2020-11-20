@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from .solvers import Solver
-from .pp_math import norm, vec_norm, vec_inner
+from .pp_math import norm, vec_norm, vec_inner, vec_cross
 from .helpers import OneLineProgress
 
 class VortexRingSolver(Solver):
@@ -29,15 +29,12 @@ class VortexRingSolver(Solver):
         # Create panel influence matrix; first index is the influenced panel, second is the influencing panel
         self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
         for i, panel in enumerate(self._mesh.panels):
-            self._panel_influence_matrix[:,i] = panel.get_ring_influence(self._cp)
+            self._panel_influence_matrix[:,i] = panel.get_ring_influence(self._mesh.cp)
             if self._verbose:
                 prog.display()
 
         # Determine panel part of A matrix
-        self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._n)
-
-        # Determine projection matrix onto plane of each panel
-        self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._n[:,:,np.newaxis], self._n[:,np.newaxis,:])
+        self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._mesh.n)
 
 
     def set_condition(self, **kwargs):
@@ -58,7 +55,7 @@ class VortexRingSolver(Solver):
         self._rho = kwargs["rho"]
 
         # Create part of b vector dependent upon V_inf
-        self._b = -vec_inner(self._v_inf, self._n)
+        self._b = -vec_inner(self._v_inf, self._mesh.n)
 
 
     def solve(self, **kwargs):
@@ -70,6 +67,14 @@ class VortexRingSolver(Solver):
             Whether the Kutta condition is to be enforced. Defaults to False.
 
         verbose : bool, optional
+
+        Returns
+        -------
+        F : ndarray
+            Force vector in mesh coordinates.
+
+        M : ndarray
+            Moment vector in mesh coordinates.
         """
         start_time = time.time()
 
@@ -86,17 +91,18 @@ class VortexRingSolver(Solver):
             if self._verbose:
                 print()
                 prog = OneLineProgress(self._mesh.N_edges, "Determining wake influence")
+
             self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
             for edge in self._mesh.kutta_edges:
                 p_ind = edge.panel_indices
-                V = edge.get_vortex_influence(self._cp, self._u_inf[np.newaxis,:])
+                V = edge.get_vortex_influence(self._mesh.cp, self._u_inf[np.newaxis,:])
                 self._vortex_influence_matrix[:,p_ind[0]] = -V
                 self._vortex_influence_matrix[:,p_ind[1]] = V
                 if self._verbose:
                     prog.display()
 
             # Specify A matrix
-            A = self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._n)
+            A = self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n)
 
             if self._verbose: print("\nSolving lifting case...", end='', flush=True)
 
@@ -118,12 +124,6 @@ class VortexRingSolver(Solver):
 
         # Solve system using least-squares approach
         self._gamma, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
-        #self._gamma, res, rank, s_a = np.linalg.lstsq(self._A_panels, self._b, rcond=None)
-        #plt.figure()
-        #plt.plot(s_a)
-        #plt.show()
-        #rank = np.linalg.matrix_rank(self._A_panels)
-        #self._gamma = np.linalg.solve(self._A_panels, self._b)
         end_time = time.time()
         if self._verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
@@ -133,8 +133,8 @@ class VortexRingSolver(Solver):
                 pass
             print("    Circulation sum: {0}".format(np.sum(self._gamma)))
             print("    Rank of A matrix: {0}".format(rank))
-            ##print("    Max singular value of A: {0}".format(np.max(s_a)))
-            #print("    Min singular value of A: {0}".format(np.min(s_a)))
+            print("    Max singular value of A: {0}".format(np.max(s_a)))
+            print("    Min singular value of A: {0}".format(np.min(s_a)))
 
         if self._verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()
@@ -156,7 +156,7 @@ class VortexRingSolver(Solver):
         end_time = time.time()
 
         # Determine force acting on each panel
-        self._dF = -(self._rho*self._V_inf_2*self._dA*self._C_P)[:,np.newaxis]*self._n
+        self._dF = -(self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
 
         # Sum force components starting with the smallest magnitudes (for numerical stability)
         self._F = np.zeros(3)
@@ -166,5 +166,18 @@ class VortexRingSolver(Solver):
         self._F[1] = np.sum(self._dF[y_sorted_ind,1])
         z_sorted_ind = np.argsort(self._dF[:,2])
         self._F[2] = np.sum(self._dF[z_sorted_ind,2])
+
+        # Determine moment contribution due to each panel
+        self._dM = vec_cross(self._mesh.r_CG, self._dF)
+
+        # Sum moment components
+        self._M = np.zeros(3)
+        x_sorted_ind = np.argsort(self._dM[:,0])
+        self._M[0] = np.sum(self._dM[x_sorted_ind,0])
+        y_sorted_ind = np.argsort(self._dM[:,1])
+        self._M[1] = np.sum(self._dM[y_sorted_ind,1])
+        z_sorted_ind = np.argsort(self._dM[:,2])
+        self._M[2] = np.sum(self._dM[z_sorted_ind,2])
+
         if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-        return self._F
+        return self._F, self._M

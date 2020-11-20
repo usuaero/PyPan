@@ -9,119 +9,56 @@ from stl import mesh
 from mpl_toolkits import mplot3d
 
 if __name__=="__main__":
-    
-    # Specify input
-    input_dict = {
-        "solver" : {
-            "type" : "nonlinear"
-        },
-        "units" : "English",
-        "scene" : {
-            "atmosphere" : {
-            }
-        }
-    }
 
     # Specify airplane
     airplane_dict = {
         "weight" : 50.0,
         "units" : "English",
-        "controls" : {
-            "aileron" : {
-                "is_symmetric" : False
-            },
-            "elevator" : {
-                "is_symmetric" : True
-            },
-            "rudder" : {
-                "is_symmetric" : False
-            }
-        },
         "airfoils" : {
             "NACA_0010" : {
                 "geometry" : {
-                    "NACA" : "0012"
+                    "NACA" : "0012",
+                    "NACA_closed_te" : True
                 }
             }
         },
-        "plot_lacs" : False,
         "wings" : {
             "main_wing" : {
                 "ID" : 1,
                 "side" : "both",
                 "is_main" : True,
                 "airfoil" : "NACA_0010",
-                "semispan" : 4.0,
-                "chord" : [[0.0, 1.0],
-                           [1.0, 1.0]],
-                "twist" : [[0.0, 0.0],
-                           [0.5, 0.0],
-                           [0.5, 0.0],
-                           [1.0, 0.0]],
-                "sweep" : [[0.0, 45.0],
-                           [0.5, 45.0],
-                           [0.5, 45.0],
-                           [1.0, 45.0]],
-                #"control_surface" : {
-                #    "chord_fraction" : 0.4,
-                #    "root_span" : 0.55,
-                #    "tip_span" : 0.95,
-                #    "control_mixing" : {
-                #        "aileron" : 1.0,
-                #        "elevator" : 1.0
-                #    }
-                #},
+                "semispan" : 1.5,
+                "chord" : [[0.0, 5.0],
+                           [0.05, 4.9],
+                           [0.1, 4.5],
+                           [0.15, 3.0],
+                           [0.2, 1.5],
+                           [1.0, 0.25]],
+                "sweep" : [[0.0, 0.0],
+                           [0.2, 80.0],
+                           [0.2, 55.0],
+                           [1.0, 55.0]],
                 "grid" : {
-                    "N" : 50,
+                    "N" : 40,
                     "wing_ID" : 1,
-                    "reid_corrections" : True
-                    #"joint_length" : 2.0,
-                    #"blending_distance" : 2.0
+                    "reid_corrections" : True,
                 },
                 "CAD_options" :{
                     "round_stl_tip" : True,
                     "round_stl_root" : False,
-                    "n_rounding_sections" : 10
+                    "n_rounding_sections" : 10,
+                    "cluster_points" : [0.2]
                 }
             }
         }
     }
 
-    # Specify state
-    state = {
-        "velocity" : 100.0,
-        "alpha" : 5.0,
-        "beta" : 0.0
-    }
-
-    control_state = {
-        "elevator" : 0.0,
-        "aileron" : 0.0,
-        "rudder" : 0.0
-    }
-
     # Load scene
-    scene = MX.Scene(input_dict)
-    scene.add_aircraft("plane", airplane_dict, state=state, control_state=control_state)
-
-    #scene.display_wireframe(show_vortices=True)
-    stl_file = "dev/swept_wing_51.stl"
-    scene.export_stl(filename=stl_file, section_resolution=51)
-
-    ## Solve forces
-    #FM = scene.solve_forces(non_dimensional=False, verbose=True)
-    #print(json.dumps(FM["plane"]["total"], indent=4))
-    #scene.out_gamma()
-
-    #scene.distributions(filename="dist.txt")
-
-    ## Get derivatives
-    #derivs = scene.derivatives(wind_frame=False)
-    #print(json.dumps(derivs["plane"], indent=4))
-
-    ## Get state derivatives
-    #derivs = scene.state_derivatives()
-    #print(json.dumps(derivs["plane"], indent=4))
-
-    #my_mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
-    #my_mesh.plot(centroids=False)
+    state = {
+        "velocity" : 100.0
+    }
+    scene = MX.Scene()
+    scene.add_aircraft("plane", airplane_dict, state=state)
+    stl_file = "dev/meshes/cool_body_7000.stl"
+    scene.export_stl(filename=stl_file, section_resolution=41)

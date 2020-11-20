@@ -19,13 +19,11 @@ class Solver:
         self._verbose = kwargs.get("verbose", False)
 
         # Gather control point locations and normals
-        if self._verbose: print("\nParsing mesh into solver...", end='', flush=True)
         self._N_panels = self._mesh.N
         self._N_edges = self._mesh.N_edges
-        self._cp = self._mesh.cp
-        self._n = self._mesh.n
-        self._dA = self._mesh.dA
-        if self._verbose: print("Finished", flush=True)
+
+        # Determine projection matrix onto plane of each panel
+        self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._mesh.n[:,:,np.newaxis], self._mesh.n[:,np.newaxis,:])
 
 
     def export_case_data(self, filename):
@@ -58,13 +56,13 @@ class Solver:
         table_data = np.zeros(self._N_panels, dtype=item_types)
 
         # Geometry
-        table_data[:]["cpx"] = self._cp[:,0]
-        table_data[:]["cpy"] = self._cp[:,1]
-        table_data[:]["cpz"] = self._cp[:,2]
-        table_data[:]["nx"] = self._n[:,0]
-        table_data[:]["ny"] = self._n[:,1]
-        table_data[:]["nz"] = self._n[:,2]
-        table_data[:]["area"] = self._dA
+        table_data[:]["cpx"] = self._mesh.cp[:,0]
+        table_data[:]["cpy"] = self._mesh.cp[:,1]
+        table_data[:]["cpz"] = self._mesh.cp[:,2]
+        table_data[:]["nx"] = self._mesh.n[:,0]
+        table_data[:]["ny"] = self._mesh.n[:,1]
+        table_data[:]["nz"] = self._mesh.n[:,2]
+        table_data[:]["area"] = self._mesh.dA
 
         # Velocities
         table_data[:]["u"] = self._v[:,0]
@@ -134,7 +132,7 @@ class Solver:
 
             # Normals
             print("NORMALS panel_normals float", file=export_handle)
-            for n in self._n:
+            for n in self._mesh.n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 
             # Pressure coefficient
@@ -159,7 +157,7 @@ class Solver:
                 # Normal velocity
                 print("SCALARS normal_velocity float", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
-                for v_n in vec_inner(self._v, self._n):
+                for v_n in vec_inner(self._v, self._mesh.n):
                     print("{0:<20.12}".format(v_n), file=export_handle)
 
 

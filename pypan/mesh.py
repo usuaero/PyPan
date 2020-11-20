@@ -48,7 +48,11 @@ class Mesh:
         specified. However, if given, this will force reevaluation of the Kutta
         edges (expensive!) whether or not were determined previously. If not given,
         the Kutta edges listed in the mesh file will be used.
-    
+
+    CG : list, optional
+        Location of the center of gravity for the mesh. This is the location about 
+        which moments are computed. Defaults to [0.0, 0.0, 0.0]. This is relative
+        to the coordinate system of the mesh.
     """
 
     def __init__(self, **kwargs):
@@ -58,6 +62,7 @@ class Mesh:
         mesh_file = kwargs.get("mesh_file")
         mesh_type = kwargs.get("mesh_file_type")
         self._verbose = kwargs.get("verbose", False)
+        self.CG = np.array(kwargs.get("CG", [0.0, 0.0, 0.0]))
 
         # Load mesh
         if self._verbose:
@@ -78,6 +83,9 @@ class Mesh:
 
         # Find Kutta edges
         self._find_kutta_edges(**kwargs)
+
+        # Calculate moment arms
+        self.r_CG = self.cp-self.CG[np.newaxis,:]
 
         # Display mesh information
         if self._verbose:
@@ -531,6 +539,6 @@ class Mesh:
             b = neighbor_phis-phi[i]
 
             # Solve
-            grad_phi[i],_,_,_ = np.linalg.lstsq(A, b)
+            grad_phi[i] = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
 
         return grad_phi
