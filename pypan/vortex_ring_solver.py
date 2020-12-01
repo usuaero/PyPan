@@ -66,6 +66,10 @@ class VortexRingSolver(Solver):
         lifting : bool, optional
             Whether the Kutta condition is to be enforced. Defaults to False.
 
+        method : str, optional
+            Method for computing the least-squares solution to the system of equations.
+            May be 'svd', 'qr', or 'direct'. Defaults to 'svd'.
+
         verbose : bool, optional
 
         Returns
@@ -80,6 +84,7 @@ class VortexRingSolver(Solver):
 
         # Get kwargs
         lifting = kwargs.get("lifting", False)
+        method = kwargs.get("method", "svd")
         self._verbose = kwargs.get("verbose", False)
 
         # Lifting
@@ -122,19 +127,35 @@ class VortexRingSolver(Solver):
             b = np.zeros(self._N_panels+1)
             b[:-1] = self._b
 
-        # Solve system using least-squares approach
-        self._gamma, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+        # Solve system
+        if method == "svd": # Singular value decomposition
+            self._gamma, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+
+        elif method == "qr": # QR factorization
+            q, r = np.linalg.qr(A)
+            c = np.einsum('ij,i', q, b)
+            self._gamma = np.linalg.solve(r[:self._N_panels,:self._N_panels], c)
+
+        elif method == "direct": # Not sure how this works...
+            if lifting:
+                self._gamma = np.linalg.solve(A, b)
+            else:
+                self._gamma = np.linalg.solve(self._A_panels, self._b)
+
+        # Print computation results
         end_time = time.time()
         if self._verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-            try:
-                print("    Maximum residual: {0}".format(np.max(res)))
-            except:
-                pass
             print("    Circulation sum: {0}".format(np.sum(self._gamma)))
-            print("    Rank of A matrix: {0}".format(rank))
-            print("    Max singular value of A: {0}".format(np.max(s_a)))
-            print("    Min singular value of A: {0}".format(np.min(s_a)))
+
+            if method == "svd":
+                try:
+                    print("    Maximum residual: {0}".format(np.max(res)))
+                except:
+                    pass
+                print("    Rank of A matrix: {0}".format(rank))
+                print("    Max singular value of A: {0}".format(np.max(s_a)))
+                print("    Min singular value of A: {0}".format(np.min(s_a)))
 
         if self._verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
         start_time = time.time()

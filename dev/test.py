@@ -35,7 +35,7 @@ if __name__=="__main__":
     my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
 
     # Solve
-    F, M = my_solver.solve(verbose=True, lifting=True)
+    F, M = my_solver.solve(verbose=True, lifting=True, method="svd")
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))
