@@ -18,12 +18,14 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/swept_wing_21_rounded.stl"
     #mesh_file = "dev/meshes/swept_wing_21.vtk"
     #mesh_file = "dev/meshes/F16_Original_withFins.stl"
-    mesh_file = "dev/meshes/cool_body_7000.stl"
+    #mesh_file = "dev/meshes/cool_body_7000.stl"
+    mesh_file = "dev/meshes/axiebody.INP"
     #mesh_file = "dev/meshes/swept_wing_30_span_31_sec_10_tip.stl"
     start_time = time.time()
 
-    my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
+    #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     #my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
+    my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="PAN AIR", kutta_angle=90.0, verbose=True)
 
     my_mesh.export_vtk(mesh_file.replace(".stl", ".vtk").replace(".STL", ".vtk"))
     #my_mesh.plot(centroids=False)
@@ -35,7 +37,7 @@ if __name__=="__main__":
     my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
 
     # Solve
-    F, M = my_solver.solve(verbose=True, lifting=True, method="svd")
+    F, M = my_solver.solve(verbose=True, lifting=True, method="direct")
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))

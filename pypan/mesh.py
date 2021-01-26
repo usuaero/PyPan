@@ -103,9 +103,13 @@ class Mesh:
         if mesh_file_type == "STL":
             self._load_stl(mesh_file)
 
-        # PyPan
+        # VTK
         elif mesh_file_type == "VTK":
             self._load_vtk_mesh(mesh_file)
+
+        # PAN AIR
+        elif mesh_file_type == "PAN AIR":
+            self._load_panair_mesh(mesh_file)
 
         # Unrecognized type
         else:
@@ -217,6 +221,58 @@ class Mesh:
 
             # Update index
             curr_ind += n+1
+
+
+    def _load_panair_mesh(self, panair_file):
+        # Reads in the structured mesh from a PAN AIR input file
+
+        # Initialize storage
+        vertices = []
+        panels = []
+
+        # Open file
+        with open(panair_file, 'r') as input_handle:
+
+            # Get to mesh points
+            while "$POINTS" not in input_handle.readline():
+                continue
+
+            # Store points
+            skip_next = False
+            for line in input_handle.readlines():
+
+                # Skip irrelevant lines
+                if line[0]=="=":
+                    skip_next = True
+                    continue
+                if "$POINTS" in line:
+                    continue
+                if skip_next:
+                    skip_next = False
+                    continue
+
+                # End mesh parsing
+                if "$FLOW-FIELD" in line:
+                    break
+
+                # Get points
+                N_coords = len(line)/10
+                N_vert = int(N_coords/3)
+                for i in range(N_vert):
+                    vertices.append([float(line[int(i*30):int(i*30+10)]), float(line[int(i*30+10):int(i*30+20)]), float(line[int(i*30+20):int(i*30+30)])])
+
+        # Set up plot
+        fig = plt.figure(figsize=plt.figaspect(1.0))
+        ax = fig.gca(projection='3d')
+        
+        # Plot vertices
+        for vertex in vertices:
+            ax.plot(vertex[0], vertex[1], vertex[2], 'k.')
+
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+        ax.set_zlabel('z')
+        plt.show()
 
 
     def _find_kutta_edges(self, **kwargs):
