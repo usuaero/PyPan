@@ -2,9 +2,7 @@
 
 import time
 
-from numpy.core.function_base import _linspace_dispatcher
 import stl
-import vtk
 import warnings
 
 import numpy as np
@@ -12,7 +10,6 @@ import pyvista as pv
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
-from vtk.util.numpy_support import vtk_to_numpy
 
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
@@ -77,8 +74,8 @@ class Mesh:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
         # Create panel vertex mapping
-        # VTK does this inherently; STL has a faster way than the brute-force method
-        if mesh_type != "VTK" and mesh_type != "STL":
+        # VTK and PAN AIR do this inherently; STL has a faster way than the brute-force method
+        if mesh_type != "VTK" and mesh_type != "STL" and mesh_type != "PAN AIR":
             self._determine_panel_vertex_mapping()
 
         # Determine panel adjacency mapping
@@ -108,11 +105,11 @@ class Mesh:
 
         # VTK
         elif mesh_file_type == "VTK":
-            self._load_vtk_mesh(mesh_file)
+            self._load_vtk(mesh_file)
 
         # PAN AIR
         elif mesh_file_type == "PAN AIR":
-            self._load_panair_mesh(mesh_file)
+            self._load_panair(mesh_file)
 
         # Unrecognized type
         else:
@@ -168,9 +165,9 @@ class Mesh:
         for i in range(self.N):
             self._panel_vertex_indices.append([3, *inverse_indices[i::self.N]])
 
-    
-    def _load_vtk_mesh(self, vtk_file):
-        # Loads mesh from PyPan file
+
+    def _load_vtk(self, vtk_file):
+        # Loads mesh from vtk file
 
         # Get data from file
         mesh_data = pv.read(vtk_file)
@@ -226,7 +223,7 @@ class Mesh:
             curr_ind += n+1
 
 
-    def _load_panair_mesh(self, panair_file):
+    def _load_panair(self, panair_file):
         # Reads in the structured mesh from a PAN AIR input file
 
         # Initialize storage
@@ -238,10 +235,17 @@ class Mesh:
 
             # Read in lines
             lines = input_handle.readlines()
-            i = 0
+            i = -1
+
+            # Initialize some defaults
+            xy_sym = False
+            xz_sym = False
 
             # Run through case setup
             while True:
+
+                # Step to next line
+                i += 1
 
                 # Get symmetry
                 if "$SYMMETRIC" in lines[i]:
@@ -251,47 +255,74 @@ class Mesh:
                     for plane, plane_toggle in zip(planes, plane_toggles):
 
                         # XY symmetry
-                        if "xy" in plane and bool(plane_toggle):
-                            xy_sym = True
+                        if "xy" in plane:
+                            xy_sym = bool(float(plane_toggle))
 
                         # XZ symmetry
-                        if "xz" in plane and bool(plane_toggle):
-                            xz_sym = True
+                        if "xz" in plane:
+                            xz_sym = bool(float(plane_toggle))
 
                 # Check if we've reached the points
                 if "$POINTS" in lines[i]:
+                    i -= 1
                     break
+
+            # Store networks
+            wake = False
+            while True:
 
                 # Step to next line
                 i += 1
-
-            # Store points
-            while True:
                 line = lines[i]
 
-                # Skip irrelevant lines
-                if line[0]=="=":
-                    i += 2
-                    continue
+                # Skip these rows
                 if "$POINTS" in line:
+                    pass
+
+                # Get panel parameters
+                elif "=kn" in line:
+                    i += 1 # Skip a line
+                    kn = int(float(lines[i].split()[0]))
+
+                elif "=kt" in line:
+                    i += 1 # Skip a line
+                    kt = int(float(lines[i].split()[0]))
+
+                # Check for start of new network
+                elif "=nm" in line and "nn" in line:
+
+                    # Check for wake
+                    if "wake" in line:
+                        wake = True
+                    else:
+                        wake = False
+
+                    # Store number of rows and columns of panels in this network
                     i += 1
-                    continue
+                    info = lines[i].split()
+                    n_rows = int(float(info[0]))
+                    n_cols = int(float(info[1]))
 
                 # End mesh parsing
-                if "$FLOW-FIELD" in line:
+                elif "$FLOW-FIELD" in line:
                     break
 
                 # Get points
-                N_coords = len(line)/10
-                N_vert = int(N_coords/3)
-                for j in range(N_vert):
-                    vertex = [float(line[int(j*30):int(j*30+10)]),
-                              float(line[int(j*30+10):int(j*30+20)]),
-                              float(line[int(j*30+20):int(j*30+30)])]
-                    vertices.append(vertex)
+                elif not wake:
+                    N_coords = len(line)/10
+                    N_vert = int(N_coords/3)
+                    for j in range(N_vert):
+                        vertex = [float(line[int(j*30):int(j*30+10)]),
+                                  float(line[int(j*30+10):int(j*30+20)]),
+                                  float(line[int(j*30+20):int(j*30+30)])]
+                        vertices.append(vertex)
 
-                # Step to next line
-                i += 1
+        # Determine total number of panels
+        self.N = (n_rows-1)*(n_cols-1)
+        print(self.N)
+        print(len(vertices))
+        self.N *= xy_sym*2
+        self.N *= int(xz_sym*2)
 
         # Apply xz symmetry
         if xz_sym:

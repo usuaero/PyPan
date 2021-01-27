@@ -1,8 +1,8 @@
-import copy
 import time
 import pypan as pp
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 if __name__=="__main__":
 
@@ -20,6 +20,7 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/F16_Original_withFins.stl"
     #mesh_file = "dev/meshes/cool_body_7000.stl"
     mesh_file = "dev/meshes/axiebody.INP"
+    #mesh_file = "dev/meshes/wingbody.INP"
     #mesh_file = "dev/meshes/swept_wing_30_span_31_sec_10_tip.stl"
     start_time = time.time()
 

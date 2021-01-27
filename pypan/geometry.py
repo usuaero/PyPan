@@ -1,17 +1,11 @@
 """Defines classes for handling basic geometric elements."""
 
-import stl
-import warnings
-import time
-
 import numpy as np
-import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
 from abc import abstractmethod
 
-from .pp_math import vec_norm, norm, vec_inner, inner, vec_cross, cross
-from .helpers import OneLineProgress
+from pypan.pp_math import vec_norm, norm, vec_inner, inner, vec_cross, cross
 
 
 class Panel:
@@ -60,6 +54,11 @@ class Panel:
 
     @abstractmethod
     def _calc_area(self):
+        pass
+
+
+    @abstractmethod
+    def mirror(self):
         pass
 
 
@@ -201,7 +200,8 @@ class Tri(Panel):
 
 
 class KuttaEdge:
-    """A class for defining an edge segment at which the Kutta condition is applied.
+    """A class for defining an edge segment at which the Kutta condition is applied. These are used
+    for the horseshoe vortex type wake.
 
     Parameters
     ----------
@@ -272,3 +272,47 @@ class KuttaEdge:
         v_1_inf = vec_cross(u_inf, r1)/(r1_mag*(r1_mag-vec_inner(u_inf, r1)[:,np.newaxis]))
 
         return 0.25/np.pi*(-v_0_inf+v_01+v_1_inf)
+
+
+class PANAIRPanel:
+    """A class for defining the panels used in PAN AIR.
+
+    Parameters
+    ----------
+    v0 : list
+        First corner vertex.
+
+    v1 : list
+        Second corner vertex.
+
+    v2 : list
+        Third corner vertex.
+
+    v3 : list
+        Fourth corner vertex.
+    """
+
+    def __init__(self, **kwargs) -> PANAIRPanel:
+
+        # Store vertices
+        self.vertices = np.zeros((4,3))
+        self.vertices[0] = kwargs.get("v0")
+        self.vertices[1] = kwargs.get("v1")
+        self.vertices[2] = kwargs.get("v2")
+        self.vertices[3] = kwargs.get("v3")
+
+
+    def mirror(self) -> PANAIRPanel:
+        """Returns a mirror of this panel.
+
+        Parameters
+        ----------
+        plane : str
+            Plane across which to mirror this panel. May be 'xy' or 'xz'.
+        
+        Returns
+        -------
+        PANAIRPanel
+            A mirrored panel of this panel.
+        """
+        pass
