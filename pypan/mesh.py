@@ -1,6 +1,8 @@
 """Defines classes for handling meshes."""
 
 import time
+
+from numpy.core.function_base import _linspace_dispatcher
 import stl
 import vtk
 import warnings
@@ -12,9 +14,10 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from vtk.util.numpy_support import vtk_to_numpy
 
-from .pp_math import vec_cross, vec_inner, vec_norm, norm
-from .helpers import OneLineProgress
-from .geometry import Tri, Quad, KuttaEdge
+from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
+from pypan.helpers import OneLineProgress
+from pypan.geometry import Tri, Quad, KuttaEdge
+
 
 class Mesh:
     """A class for defining collections of panels.
@@ -233,22 +236,45 @@ class Mesh:
         # Open file
         with open(panair_file, 'r') as input_handle:
 
-            # Get to mesh points
-            while "$POINTS" not in input_handle.readline():
-                continue
+            # Read in lines
+            lines = input_handle.readlines()
+            i = 0
+
+            # Run through case setup
+            while True:
+
+                # Get symmetry
+                if "$SYMMETRIC" in lines[i]:
+                    planes = lines[i+1].split()
+                    plane_toggles = lines[i+2].split()
+
+                    for plane, plane_toggle in zip(planes, plane_toggles):
+
+                        # XY symmetry
+                        if "xy" in plane and bool(plane_toggle):
+                            xy_sym = True
+
+                        # XZ symmetry
+                        if "xz" in plane and bool(plane_toggle):
+                            xz_sym = True
+
+                # Check if we've reached the points
+                if "$POINTS" in lines[i]:
+                    break
+
+                # Step to next line
+                i += 1
 
             # Store points
-            skip_next = False
-            for line in input_handle.readlines():
+            while True:
+                line = lines[i]
 
                 # Skip irrelevant lines
                 if line[0]=="=":
-                    skip_next = True
+                    i += 2
                     continue
                 if "$POINTS" in line:
-                    continue
-                if skip_next:
-                    skip_next = False
+                    i += 1
                     continue
 
                 # End mesh parsing
@@ -258,8 +284,38 @@ class Mesh:
                 # Get points
                 N_coords = len(line)/10
                 N_vert = int(N_coords/3)
-                for i in range(N_vert):
-                    vertices.append([float(line[int(i*30):int(i*30+10)]), float(line[int(i*30+10):int(i*30+20)]), float(line[int(i*30+20):int(i*30+30)])])
+                for j in range(N_vert):
+                    vertex = [float(line[int(j*30):int(j*30+10)]),
+                              float(line[int(j*30+10):int(j*30+20)]),
+                              float(line[int(j*30+20):int(j*30+30)])]
+                    vertices.append(vertex)
+
+                # Step to next line
+                i += 1
+
+        # Apply xz symmetry
+        if xz_sym:
+            
+            # Run through vertices already there
+            N_vert_orig = len(vertices)
+            for i in range(N_vert_orig):
+                vertex = vertices[i]
+                
+                # Check we won't just be duplicating a point
+                if abs(vertex[1])>1e-10:
+                    vertices.append([vertex[0], -vertex[1], vertex[2]])
+
+        # Apply xy symmetry (will often be skipped)
+        if xy_sym:
+            
+            # Run through vertices already there
+            N_vert_orig = len(vertices)
+            for i in range(N_vert_orig):
+                vertex = vertices[i]
+                
+                # Check we won't just be duplicating a point
+                if abs(vertex[2])>1e-10:
+                    vertices.append([vertex[0], vertex[1], -vertex[2]])
 
         # Set up plot
         fig = plt.figure(figsize=plt.figaspect(1.0))
@@ -272,7 +328,35 @@ class Mesh:
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
+        self._rescale_3D_axes(ax)
         plt.show()
+
+
+    def _rescale_3D_axes(self, ax):
+        # Rescales 3D axes to have same scale
+
+        # Get current limits
+        x_lims = ax.get_xlim()
+        y_lims = ax.get_ylim()
+        z_lims = ax.get_zlim()
+        
+        # Determine ranges
+        x_diff = x_lims[1]-x_lims[0]
+        y_diff = y_lims[1]-y_lims[0]
+        z_diff = z_lims[1]-z_lims[0]
+        
+        # Determine max range
+        max_diff = max(max(x_diff, y_diff), z_diff)
+
+        # Determine center of each axis
+        x_avg = 0.5*(x_lims[0]+x_lims[1])
+        y_avg = 0.5*(y_lims[0]+y_lims[1])
+        z_avg = 0.5*(z_lims[0]+z_lims[1])
+
+        # Set new limits
+        ax.set_xlim3d(x_avg-max_diff, x_avg+max_diff)
+        ax.set_ylim3d(y_avg-max_diff, y_avg+max_diff)
+        ax.set_zlim3d(z_avg-max_diff, z_avg+max_diff)
 
 
     def _find_kutta_edges(self, **kwargs):
@@ -485,9 +569,7 @@ class Mesh:
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
-        lims= ax.get_ylim()
-        ax.set_xlim3d(lims[0], lims[1])
-        ax.set_zlim3d(lims[0], lims[1])
+        self._rescale_3D_axes(ax)
         plt.legend()
         plt.show()
 
