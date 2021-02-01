@@ -74,8 +74,8 @@ class Mesh:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
         # Create panel vertex mapping
-        # VTK and PAN AIR do this inherently; STL has a faster way than the brute-force method
-        if mesh_type != "VTK" and mesh_type != "STL" and mesh_type != "PAN AIR":
+        # VTK does this inherently; STL has a faster way than the brute-force method
+        if mesh_type != "VTK" and mesh_type != "STL":
             self._determine_panel_vertex_mapping()
 
         # Determine panel adjacency mapping
@@ -106,10 +106,6 @@ class Mesh:
         # VTK
         elif mesh_file_type == "VTK":
             self._load_vtk(mesh_file)
-
-        # PAN AIR
-        elif mesh_file_type == "PAN AIR":
-            self._load_panair(mesh_file)
 
         # Unrecognized type
         else:
@@ -221,146 +217,6 @@ class Mesh:
 
             # Update index
             curr_ind += n+1
-
-
-    def _load_panair(self, panair_file):
-        # Reads in the structured mesh from a PAN AIR input file
-
-        # Initialize storage
-        vertices = []
-        panels = []
-
-        # Open file
-        with open(panair_file, 'r') as input_handle:
-
-            # Read in lines
-            lines = input_handle.readlines()
-            i = -1
-
-            # Initialize some defaults
-            xy_sym = False
-            xz_sym = False
-
-            # Run through case setup
-            while True:
-
-                # Step to next line
-                i += 1
-
-                # Get symmetry
-                if "$SYMMETRIC" in lines[i]:
-                    planes = lines[i+1].split()
-                    plane_toggles = lines[i+2].split()
-
-                    for plane, plane_toggle in zip(planes, plane_toggles):
-
-                        # XY symmetry
-                        if "xy" in plane:
-                            xy_sym = bool(float(plane_toggle))
-
-                        # XZ symmetry
-                        if "xz" in plane:
-                            xz_sym = bool(float(plane_toggle))
-
-                # Check if we've reached the points
-                if "$POINTS" in lines[i]:
-                    i -= 1
-                    break
-
-            # Store networks
-            wake = False
-            while True:
-
-                # Step to next line
-                i += 1
-                line = lines[i]
-
-                # Skip these rows
-                if "$POINTS" in line:
-                    pass
-
-                # Get panel parameters
-                elif "=kn" in line:
-                    i += 1 # Skip a line
-                    kn = int(float(lines[i].split()[0]))
-
-                elif "=kt" in line:
-                    i += 1 # Skip a line
-                    kt = int(float(lines[i].split()[0]))
-
-                # Check for start of new network
-                elif "=nm" in line and "nn" in line:
-
-                    # Check for wake
-                    if "wake" in line:
-                        wake = True
-                    else:
-                        wake = False
-
-                    # Store number of rows and columns of panels in this network
-                    i += 1
-                    info = lines[i].split()
-                    n_rows = int(float(info[0]))
-                    n_cols = int(float(info[1]))
-
-                # End mesh parsing
-                elif "$FLOW-FIELD" in line:
-                    break
-
-                # Get points
-                elif not wake:
-                    N_coords = len(line)/10
-                    N_vert = int(N_coords/3)
-                    for j in range(N_vert):
-                        vertex = [float(line[int(j*30):int(j*30+10)]),
-                                  float(line[int(j*30+10):int(j*30+20)]),
-                                  float(line[int(j*30+20):int(j*30+30)])]
-                        vertices.append(vertex)
-
-        # Determine total number of panels
-        self.N = (n_rows-1)*(n_cols-1)
-        print(self.N)
-        print(len(vertices))
-        self.N *= xy_sym*2
-        self.N *= int(xz_sym*2)
-
-        # Apply xz symmetry
-        if xz_sym:
-            
-            # Run through vertices already there
-            N_vert_orig = len(vertices)
-            for i in range(N_vert_orig):
-                vertex = vertices[i]
-                
-                # Check we won't just be duplicating a point
-                if abs(vertex[1])>1e-10:
-                    vertices.append([vertex[0], -vertex[1], vertex[2]])
-
-        # Apply xy symmetry (will often be skipped)
-        if xy_sym:
-            
-            # Run through vertices already there
-            N_vert_orig = len(vertices)
-            for i in range(N_vert_orig):
-                vertex = vertices[i]
-                
-                # Check we won't just be duplicating a point
-                if abs(vertex[2])>1e-10:
-                    vertices.append([vertex[0], vertex[1], -vertex[2]])
-
-        # Set up plot
-        fig = plt.figure(figsize=plt.figaspect(1.0))
-        ax = fig.gca(projection='3d')
-        
-        # Plot vertices
-        for vertex in vertices:
-            ax.plot(vertex[0], vertex[1], vertex[2], 'k.')
-
-        ax.set_xlabel('x')
-        ax.set_ylabel('y')
-        ax.set_zlabel('z')
-        self._rescale_3D_axes(ax)
-        plt.show()
 
 
     def _rescale_3D_axes(self, ax):
