@@ -76,8 +76,8 @@ class PANAIRNetwork:
         # Get kwargs
         self._xy_sym = kwargs.get("xy_sym", False)
         self._xz_sym = kwargs.get("xz_sym", False)
-        self._kn = kwargs.get("kn")
-        self._kt = kwargs.get("kt")
+        self.kn = kwargs.get("kn")
+        self.kt = kwargs.get("kt")
 
         # Parse input
         self._parse(lines)
@@ -88,12 +88,12 @@ class PANAIRNetwork:
 
         # Get shape
         shape = lines[1].split()
-        self._n_rows = int(float(shape[0]))
-        self._n_cols = int(float(shape[1]))
+        self.n_rows = int(float(shape[0]))-1
+        self.n_cols = int(float(shape[1]))-1
 
         # Determine number of panels and vertices
-        self.N = int(self._n_rows*self._n_cols)
-        self.N_vert = int((self._n_rows+1)*(self._n_cols+1))
+        self.N = int(self.n_rows*self.n_cols)
+        self.N_vert = int((self.n_rows+1)*(self.n_cols+1))
 
         # Get vertices
         self.vertices = []
@@ -105,6 +105,18 @@ class PANAIRNetwork:
                           float(line[int(j*30+10):int(j*30+20)]),
                           float(line[int(j*30+20):int(j*30+30)])]
                 self.vertices.append(vertex)
+
+        # Turn grid of vertices into panels
+        self.panels = np.empty((self.n_rows, self.n_cols), dtype=PANAIRPanel)
+        for i in range(self.n_rows):
+            for j in range(self.n_cols):
+                
+                # Vertices are stored going down the columns first (huh, who would've thought with FORTRAN)
+                # Order of the panel vertices determines panel orientation
+                self.panels[i,j] = PANAIRPanel(v0=self.vertices[j*(self.n_rows+1)+i],
+                                               v1=self.vertices[(j+1)*(self.n_rows+1)+i],
+                                               v2=self.vertices[(j+1)*(self.n_rows+1)+i+1],
+                                               v3=self.vertices[j*(self.n_rows+1)+i+1])
 
 
     def _mirror(self, plane):
@@ -179,7 +191,11 @@ class PANAIRMesh:
                     n_rows = int(float(info[0]))
                     n_cols = int(float(info[1]))
 
-                    self._networks.append(PANAIRNetwork(lines[i:i+int(n_rows//2*n_cols)+2]))
+                    # Initialize network object
+                    if n_rows%2 != 0:
+                        self._networks.append(PANAIRNetwork(lines[i:i+int((n_rows//2+1)*n_cols)+2], kn=kn, kt=kt))
+                    else:
+                        self._networks.append(PANAIRNetwork(lines[i:i+int(n_rows//2*n_cols)+2], kn=kn, kt=kt))
 
                 # End mesh parsing
                 elif "$FLOW-FIELD" in line:
@@ -221,6 +237,12 @@ class PANAIRMesh:
         Parameters
         ----------
         """
+        colors = {
+            11 : "#0000FF",
+            18 : "#FF0000",
+            20 : "#00FF00",
+            5 : "#AAAA00"
+        }
 
         # Set up plot
         fig = plt.figure(figsize=plt.figaspect(1.0))
@@ -228,8 +250,10 @@ class PANAIRMesh:
         
         # Plot vertices
         for network in self._networks:
-            for vertex in network.vertices:
-                ax.plot(vertex[0], vertex[1], vertex[2], 'k.')
+            for i in range(network.n_rows):
+                for j in range(network.n_cols):
+                    panel = network.panels[i,j]
+                    ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.kt])
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -288,3 +312,8 @@ class PANAIRMain:
 
     def execute_case(self):
         pass
+
+
+    def plot_mesh(self):
+        """Plots the input mesh."""
+        self.mesh.plot()

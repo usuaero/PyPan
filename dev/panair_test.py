@@ -10,4 +10,5 @@ if __name__=="__main__":
 
     # Load case
     my_case = PANAIRMain(input_file=input_file)
+    my_case.plot_mesh()
     my_case.execute_case()
