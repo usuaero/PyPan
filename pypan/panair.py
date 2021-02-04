@@ -2,10 +2,12 @@
 
 import time
 
+import math as m
 import numpy as np
 import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
+from pypan.pp_math import dist
 
 
 class PANAIRPanel:
@@ -22,8 +24,12 @@ class PANAIRPanel:
     v2 : list
         Third corner vertex.
 
-    v3 : list
-        Fourth corner vertex.
+    v3 : list, optional
+        Fourth corner vertex. May be omitted for triangular panel.
+
+    tol : float, optional
+        Tolerance for determining if two points are collapsed onto each other.
+        Defaults to 1e-10.
     """
 
     def __init__(self, **kwargs):
@@ -33,10 +39,35 @@ class PANAIRPanel:
         self.vertices[0] = kwargs.get("v0")
         self.vertices[1] = kwargs.get("v1")
         self.vertices[2] = kwargs.get("v2")
-        self.vertices[3] = kwargs.get("v3")
+        self.vertices[3] = kwargs.get("v3", self.vertices[2]) # Will get removed by _check_collapsed()
+
+        # Check for collapsed points
+        self._check_collapsed(kwargs.get("tol", 1e-10))
+
+        # Determine edge midpoints
+        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
 
 
-    def mirror(self):
+    def _check_collapsed(self, tol):
+        # Determines if any of the vertices in this panel are collapsed (i.e. triangular panel)
+
+        # Loop through vertices
+        collapsed = False
+        for i in range(4):
+            
+            # Check distance
+            d = dist(self.vertices[i-1], self.vertices[i])
+            if d<tol:
+                collapsed = i
+                break
+
+        # Delete point
+        if collapsed:
+            ind = [i for i in range(4) if i != collapsed]
+            self.vertices = self.vertices[ind]
+
+
+    def mirror(self, plane):
         """Returns a mirror of this panel.
 
         Parameters
@@ -49,41 +80,69 @@ class PANAIRPanel:
         PANAIRPanel
             A mirrored panel of this panel.
         """
-        pass
+        
+        # Copy vertices
+        refl_vert = np.copy(self.vertices)
+
+        # xy mirror
+        if plane=='xy':
+            refl_vert[:,2] *= -1.0
+
+        # xz mirror
+        elif plane=='xz':
+            refl_vert[:,1] *= -1.0
+
+        # Create new panel with reordered vertices
+        if refl_vert.shape[0]==4:
+            return PANAIRPanel(v0=refl_vert[3],
+                               v1=refl_vert[2],
+                               v2=refl_vert[1],
+                               v3=refl_vert[0])
+        else:
+            return PANAIRPanel(v0=refl_vert[2],
+                               v1=refl_vert[1],
+                               v2=refl_vert[0])
 
 
 class PANAIRNetwork:
-    """A class for defining a PAN AIR network.
+    """A class for defining a PAN AIR network. A network may be defined from input file
+    lines or arrays of panel objects and vertices.
 
     Parameters
     ----------
-    lines : list
+    name : str
+        Name of this network.
+
+    lines : list, optional
         Lines from the input file defining this network.
 
-    xy_sym : bool, optional
-        Whether this network is to be mirrored across the xy plane.
+    panels : ndarray, optional
+        Array of PANAIRPanel objects defining this network.
 
-    xz_sym : bool, optional
-        Whether this network is to be mirrored across the xz plane.
+    vertices : ndarray, optional
+        Array of vertices defining this network.
 
     kn : float
 
     kt : float
     """
 
-    def __init__(self, lines, **kwargs):
+    def __init__(self, **kwargs):
 
         # Get kwargs
-        self._xy_sym = kwargs.get("xy_sym", False)
-        self._xz_sym = kwargs.get("xz_sym", False)
         self.kn = kwargs.get("kn")
         self.kt = kwargs.get("kt")
+        self.name = kwargs.get("name")
 
         # Parse input
-        self._parse(lines)
+        lines = kwargs.get("lines", False)
+        if not lines:
+            self._parse_from_panels(kwargs["panels"], kwargs["vertices"])
+        else:
+            self._parse_from_input_file(lines)
 
 
-    def _parse(self, lines):
+    def _parse_from_input_file(self, lines):
         # Parses the lines given to create the network
 
         # Get shape
@@ -105,6 +164,9 @@ class PANAIRNetwork:
                           float(line[int(j*30+10):int(j*30+20)]),
                           float(line[int(j*30+20):int(j*30+30)])]
                 self.vertices.append(vertex)
+        
+        # Convert to numpy array
+        self.vertices = np.array(self.vertices)
 
         # Turn grid of vertices into panels
         self.panels = np.empty((self.n_rows, self.n_cols), dtype=PANAIRPanel)
@@ -119,9 +181,43 @@ class PANAIRNetwork:
                                                v3=self.vertices[j*(self.n_rows+1)+i+1])
 
 
-    def _mirror(self, plane):
-        # Creates a mirrored copy of this network about the given plane
-        pass
+    def _parse_from_panels(self, panels, vertices):
+        # Stores the information for the network based on arrays of panels and vertices
+
+        # Determine shape
+        self.n_rows, self.n_cols = panels.shape
+        self.N = int(self.n_rows*self.n_cols)
+        self.N_vert = int((self.n_rows+1)*(self.n_cols+1))
+
+        # Store
+        self.panels = panels
+        self.vertices = vertices
+
+
+    def mirror(self, plane):
+        """Creates a mirrored copy of this network about the given plane
+
+        Parameters
+        ----------
+        plane : str
+            May be 'xy' or 'xz'.
+        """
+
+        # Create new array of mirrored panels
+        panels = np.empty((self.n_rows, self.n_cols), dtype=PANAIRPanel)
+        for i in range(self.n_rows):
+            for j in range(self.n_cols):
+                panels[i,j] = self.panels[i,j].mirror(plane)
+
+        # Mirror vertices
+        vertices = np.copy(self.vertices)
+        if plane=='xy':
+            vertices[:,2] *= -1.0
+        else:
+            vertices[:,1] *= -1.0
+
+        # Create new network
+        return PANAIRNetwork(name=self.name+"_{0}_mirror".format(plane), panels=panels, vertices=vertices, kn=self.kn, kt=self.kt)
 
 
 class PANAIRMesh:
@@ -193,9 +289,9 @@ class PANAIRMesh:
 
                     # Initialize network object
                     if n_rows%2 != 0:
-                        self._networks.append(PANAIRNetwork(lines[i:i+int((n_rows//2+1)*n_cols)+2], kn=kn, kt=kt))
+                        self._networks.append(PANAIRNetwork(name=line.split()[-1], lines=lines[i:i+int((n_rows//2+1)*n_cols)+2], kn=kn, kt=kt))
                     else:
-                        self._networks.append(PANAIRNetwork(lines[i:i+int(n_rows//2*n_cols)+2], kn=kn, kt=kt))
+                        self._networks.append(PANAIRNetwork(name=line.split()[-1], lines=lines[i:i+int(n_rows//2*n_cols)+2], kn=kn, kt=kt))
 
                 # End mesh parsing
                 elif "$FLOW-FIELD" in line:
@@ -206,29 +302,19 @@ class PANAIRMesh:
         self.N *= xy_sym*2
         self.N *= int(xz_sym*2)
 
-        ## Apply xz symmetry
-        #if xz_sym:
-        #    
-        #    # Run through vertices already there
-        #    N_vert_orig = len(vertices)
-        #    for i in range(N_vert_orig):
-        #        vertex = vertices[i]
-        #        
-        #        # Check we won't just be duplicating a point
-        #        if abs(vertex[1])>1e-10:
-        #            vertices.append([vertex[0], -vertex[1], vertex[2]])
+        # Apply xz symmetry
+        if xz_sym:
+            
+            # Mirror panels
+            for i in range(len(self._networks)):
+                self._networks.append(self._networks[i].mirror('xz'))
 
-        ## Apply xy symmetry (will often be skipped)
-        #if xy_sym:
-        #    
-        #    # Run through vertices already there
-        #    N_vert_orig = len(vertices)
-        #    for i in range(N_vert_orig):
-        #        vertex = vertices[i]
-        #        
-        #        # Check we won't just be duplicating a point
-        #        if abs(vertex[2])>1e-10:
-        #            vertices.append([vertex[0], vertex[1], -vertex[2]])
+        # Apply xy symmetry (will often be skipped)
+        if xy_sym:
+            
+            # Mirror panels
+            for i in range(len(self._networks)):
+                self._networks.append(self._networks[i].mirror('xy'))
 
 
     def plot(self):
@@ -237,11 +323,14 @@ class PANAIRMesh:
         Parameters
         ----------
         """
+
+        # Arbitrary colors for each type of panel
         colors = {
             11 : "#0000FF",
             18 : "#FF0000",
             20 : "#00FF00",
-            5 : "#AAAA00"
+            5 : "#AA00AA",
+            1 : "#000000"
         }
 
         # Set up plot
@@ -253,7 +342,10 @@ class PANAIRMesh:
             for i in range(network.n_rows):
                 for j in range(network.n_cols):
                     panel = network.panels[i,j]
-                    ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.kt])
+                    ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.kt], linewidth=0.2)
+
+                    #for midpoint in panel.midpoints:
+                    #    ax.plot(midpoint[0], midpoint[1], midpoint[2], '.', linewidth=0.4)
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
@@ -308,10 +400,81 @@ class PANAIRMain:
         print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
         # Load in case parameters
+        start_time = time.time()
+        print("\nReading in case parameters...", end='', flush=True)
+        self._load_params(**kwargs)
+        end_time = time.time()
+        print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
 
-    def execute_case(self):
-        pass
+    def _load_params(self, **kwargs):
+        # Loads the case parameters from the input file
+
+        # Open file
+        input_file = kwargs.get("input_file")
+        with open(input_file, 'r') as input_handle:
+            lines = input_handle.readlines()
+
+        # Loop through case information
+        for i, line in enumerate(lines):
+
+            # Mach number
+            if "=amach" in line:
+                self.M = float(lines[i+1])
+
+            # Angles of attack
+            elif "=alpc" in line:
+                self.alpha_c = float(lines[i+1])
+            elif "=alpha(0)" in line:
+                self.alpha = float(lines[i+1])
+
+            # Sideslip angles
+            elif "=betc" in line:
+                self.beta_c = float(lines[i+1])
+            elif "=beta(0)" in line:
+                self.beta = float(lines[i+1])
+
+            # Reference parameters
+            elif "=sref" in line:
+                ref_info = lines[i+1].split()
+                self.S_ref = float(ref_info[0])
+                self.b_ref = float(ref_info[1])
+                self.c_ref = float(ref_info[2])
+                self.d_ref = float(ref_info[3])
+
+            # Exit
+            elif "$POINTS" in line:
+                break
+
+
+    def execute_case(self, verbose=False):
+        """Executes the case as specified in the input file.
+
+        Parameters
+        ----------
+        verbose : bool, optional
+        """
+        
+        # Calculate transforms
+        self._calc_transforms()
+
+
+    def _calc_transforms(self):
+        # Calculates the various transforms between coordinate systems
+
+        # Determine s and B
+        quant = 1.0-self.M**2
+        self._s = quant/abs(quant)
+        self._B = m.sqrt(self._s*quant)
+
+        # Determine compressibility transformation matrix
+        S_a = m.sin(self.alpha_c)
+        C_a = m.cos(self.alpha_c)
+        S_B = m.sin(self.beta_c)
+        C_B = m.cos(self.beta_c)
+        self._gamma_c = np.array([[C_a*C_B, -S_B, S_a*C_B],
+                                  [C_a*S_B, C_B, S_a*S_B],
+                                  [-S_a, 0.0, C_a]])
 
 
     def plot_mesh(self):

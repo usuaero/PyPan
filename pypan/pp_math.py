@@ -1,6 +1,7 @@
 """Helpful math functions."""
 
 import numpy as np
+import math as m
 
 
 def vec_norm(x):
@@ -11,7 +12,12 @@ def vec_norm(x):
 
 def norm(x):
     """Calculates the norm of of x."""
-    return np.sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2])
+    return m.sqrt(x[0]*x[0]+x[1]*x[1]+x[2]*x[2])
+
+
+def dist(x, y):
+    """Calculates the Euclidean distance between x and y."""
+    return norm([x[0]-y[0], x[1]-y[1], x[2]-y[2]])
 
 
 def vec_inner(x, y):
