@@ -130,4 +130,4 @@ class Network:
 
         # Handle Mach inclined error
         except MachInclinedError:
-            raise RuntimeError("Panel ({0},{1}) (or a subpanel thereof) in network {2} is Mach inclined.".format(i, j, self.name))
+            raise RuntimeError("Panel ({0},{1}) (or a subpanel or half panel thereof) in network {2} is Mach inclined.".format(i, j, self.name))

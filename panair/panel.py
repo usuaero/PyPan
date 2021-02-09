@@ -37,9 +37,12 @@ class Panel:
         # Check for collapsed points
         self._check_collapsed(kwargs.get("tol", 1e-8))
 
+        # Store number of vertices
+        self.N = self.vertices.shape[0]
+
         # Determine edge midpoints and center point (these all lie in the average plane of the panel)
         self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
-        self.center = (1.0/self.vertices.shape[0])*np.sum(self.vertices, axis=0).flatten()
+        self.center = (1.0/self.N)*np.sum(self.vertices, axis=0).flatten()
 
         # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
         # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
@@ -48,13 +51,24 @@ class Panel:
 
         # Initialize subpanels
         self.subpanels = []
-        for i in range(self.vertices.shape[0]):
+        for i in range(self.N):
 
             # Outer subpanel
             self.subpanels.append(Subpanel(v0=self.midpoints[i-1], v1=self.vertices[i], v2=self.midpoints[i]))
 
             # Inner subpanel
             self.subpanels.append(Subpanel(v0=self.midpoints[i], v1=self.center, v2=self.midpoints[i-1]))
+
+        # Calculate projected panel information
+        self._calc_projected_panel()
+
+        # Create half panels
+        if self.N==4:
+            self.half_panels = []
+            for i in range(self.N):
+                self.half_panels.append(Subpanel(v0=self.vertices[i-2], v1=self.vertices[i-1], v2=self.vertices[i]))
+        else:
+            self.half_panels = False
 
 
     def _check_collapsed(self, tol):
@@ -113,6 +127,20 @@ class Panel:
                          v2=refl_vert[0])
 
 
+    def _calc_projected_panel(self):
+        # Calculates the properties of this panel projected into the average plane
+
+        # Calculate projection matrix
+        P = np.eye(3)-np.einsum('i,j->ij', self.n, self.n)
+
+        # Project vertices
+        self.vertices_p = np.einsum('ij,kj->ki', P, self.vertices)
+
+        # Calculate edge tangents
+        self.t_p = np.roll(self.vertices, 1, axis=0)-self.vertices
+        self.t_p /= np.linalg.norm(self.t_p, axis=1, keepdims=True)
+
+
     def calc_local_coords(self, **kwargs):
         """Calculates the local coordinate system transform."""
 
@@ -122,18 +150,25 @@ class Panel:
         c_0 = kwargs['c_0']
         s = kwargs['s']
         B = kwargs['B']
+        M = kwargs['M']
 
         # Calculate panel inclination
-        self._incl = np.einsum('i,ij,j', self.n, B_0, self.n)
+        self.n_co = np.einsum('ij,j', B_0, self.n)
+        self._incl = inner(self.n, self.n_co)
         if abs(self._incl)<1e-10:
             raise MachInclinedError
         self._r = np.sign(self._incl)
 
-        # Get vector normal to normal and compressibility directions
+        # Calculate projected tangent vector compressible norms
+        self.t_p_comp_norm = np.zeros(self.N)
+        for i, t in enumerate(self.t_p):
+            self.t_p_comp_norm[i] = inner(t, t)-M**2*inner(c_0, t)**2
+
+        # Get panel coordinate directions
         v_0 = cross(self.n, c_0)
         u_0 = cross(v_0, self.n)
 
-        # Calculate transform matrix
+        # Calculate transformation matrix
         self._A = np.zeros((3,3))
         d = abs(self._incl)**-0.5
         self._A[0,:] = d*np.einsum('ij,j', C_0, u_0)
@@ -142,7 +177,12 @@ class Panel:
 
         # Calculate properties for subpanels
         for subpanel in self.subpanels:
-            subpanel.calc_compressibility_params(**kwargs)
+            subpanel.calc_local_coords(**kwargs)
+
+        # Calculate properties for half panels
+        if self.half_panels:
+            for half_panel in self.half_panels:
+                half_panel.calc_local_coords(**kwargs)
 
 
 class Subpanel:
@@ -176,14 +216,12 @@ class Subpanel:
         self.n = 0.5*n/self.A
 
         # Calculate edge tangents
-        self.t = np.zeros((3,3))
-        self.t[0] = (self.vertices[1]-self.vertices[0])/norm(self.vertices[1]-self.vertices[0])
-        self.t[1] = (self.vertices[2]-self.vertices[1])/norm(self.vertices[2]-self.vertices[1])
-        self.t[2] = (self.vertices[0]-self.vertices[2])/norm(self.vertices[0]-self.vertices[2])
+        self.t = np.roll(self.vertices, 1, axis=0)-self.vertices
+        self.t /= np.linalg.norm(self.t, axis=1, keepdims=True)
 
 
-    def calc_compressibility_params(self, **kwargs):
-        """Calculates subpanel properties dependent on flow properties.
+    def calc_local_coords(self, **kwargs):
+        """Calculates subpanel local coords (dependent on flow properties).
 
         Parameters
         ----------
