@@ -13,5 +13,5 @@ setup(name = 'PyPan',
     install_requires = ['numpy>=1.18', 'scipy>=1.4', 'pytest', 'matplotlib', 'numpy-stl', 'pyvista'],
     python_requires ='>=3.6.0',
     license = 'MIT',
-    packages = ['pypan'],
+    packages = ['pypan', 'panair'],
     zip_safe = False)

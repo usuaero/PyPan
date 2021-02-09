@@ -1,6 +1,6 @@
 # For testing the PAN AIR capabilities.
 
-from pypan.panair import PANAIRMain
+from panair.main import Main
 
 if __name__=="__main__":
 
@@ -9,6 +9,6 @@ if __name__=="__main__":
     input_file = "dev/meshes/wingbody.INP"
 
     # Load case
-    my_case = PANAIRMain(input_file=input_file)
-    my_case.plot_mesh()
-    my_case.execute_case()
+    my_case = Main(input_file=input_file, verbose=True)
+    #my_case.plot_mesh()
+    my_case.execute_case(verbose=True)
