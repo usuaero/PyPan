@@ -1,9 +1,51 @@
 import numpy as np
 
 from pypan.pp_math import dist, cross, norm, inner
+from panair.exceptions import MachInclinedError
 
 
-class Panel:
+class BasePanel:
+    """A class containing methods common to both panels and subpanels."""
+
+
+    def _calc_geom_props(self):
+        # Calculates various geometric properties of this panel
+
+        # Store number of vertices
+        self.N = self.vertices.shape[0]
+
+        # Determine edge midpoints and center point (these all lie in the average plane of the panel)
+        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
+        self.center = (1.0/self.N)*np.sum(self.vertices, axis=0).flatten()
+
+        # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
+        # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
+        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
+        self.n /= norm(self.n)
+
+        self._calc_radius_and_diameter()
+
+
+    def _calc_radius_and_diameter(self):
+        # Calculates the radius and diameter of the panel
+
+        self.radius = 0.0
+        self.diameter = 0.0
+        for i, vertex0 in enumerate(self.vertices):
+
+            # Check disance from center
+            d = dist(self.center, vertex0)
+            if d > self.radius:
+                self.radius = d
+
+            # Check distance from other vertices
+            for vertex1 in self.vertices[i+1:]:
+                d = dist(vertex0, vertex1)
+                if d > self.diameter:
+                    self.diameter = d
+
+
+class Panel(BasePanel):
     """A class for defining the panels used in PAN AIR.
 
     Parameters
@@ -23,6 +65,9 @@ class Panel:
     tol : float, optional
         Tolerance for determining if two points are collapsed onto each other.
         Defaults to 1e-10.
+
+    projected : bool, optional
+        Whether this panel has been projected to the average plane. Defaults to False.
     """
 
     def __init__(self, **kwargs):
@@ -34,35 +79,25 @@ class Panel:
         self.vertices[2] = kwargs.get("v2")
         self.vertices[3] = kwargs.get("v3", self.vertices[2]) # Will get removed by _check_collapsed()
 
-        # Check for collapsed points
+        # Run misc checks and calculations
+        self._projected = kwargs.get("projected", False)
         self._check_collapsed(kwargs.get("tol", 1e-8))
-
-        # Store number of vertices
-        self.N = self.vertices.shape[0]
-
-        # Determine edge midpoints and center point (these all lie in the average plane of the panel)
-        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
-        self.center = (1.0/self.N)*np.sum(self.vertices, axis=0).flatten()
-
-        # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
-        # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
-        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
-        self.n /= norm(self.n)
+        self._calc_geom_props()
+        if not self._projected:
+            self._calc_projected_panel()
+        self._calc_skewness()
 
         # Initialize subpanels
         self.subpanels = []
         for i in range(self.N):
 
             # Outer subpanel
-            self.subpanels.append(Subpanel(v0=self.midpoints[i-1], v1=self.vertices[i], v2=self.midpoints[i]))
+            self.subpanels.append(Subpanel(v0=self.midpoints[i-1], v1=self.vertices[i], v2=self.midpoints[i], projected=self._projected))
 
             # Inner subpanel
-            self.subpanels.append(Subpanel(v0=self.midpoints[i], v1=self.center, v2=self.midpoints[i-1]))
+            self.subpanels.append(Subpanel(v0=self.midpoints[i], v1=self.center, v2=self.midpoints[i-1], projected=self._projected))
 
-        # Calculate projected panel information
-        self._calc_projected_panel()
-
-        # Create half panels
+        # Initialize half panels (only if the panel is not already triangular)
         if self.N==4:
             self.half_panels = []
             for i in range(self.N):
@@ -88,6 +123,46 @@ class Panel:
         if collapsed is not None:
             ind = [i for i in range(4) if i != collapsed]
             self.vertices = self.vertices[ind]
+
+
+    def _calc_projected_panel(self):
+        # Calculates the properties of this panel projected into the average plane
+        # The normal vector and conormal vector will be the same
+
+        # Calculate projection matrix
+        P = np.eye(3)-np.einsum('i,j->ij', self.n, self.n)
+
+        # Project vertices
+        self.vertices_p = np.einsum('ij,kj->ki', P, self.vertices)
+
+        # Initialize new panel
+        if self.N==4:
+            self.projected_panel = Panel(v0=self.vertices[0],
+                                         v1=self.vertices[1],
+                                         v2=self.vertices[2],
+                                         v3=self.vertices[3],
+                                         projected=True)
+        else:
+            self.projected_panel = Panel(v0=self.vertices[0],
+                                         v1=self.vertices[1],
+                                         v2=self.vertices[2],
+                                         projected=True)
+
+    
+    def _calc_skewness(self):
+        # Calculates the skewness parameters for this panel (if not triangular)
+
+        if self.N==4:
+            self.C_skew = np.zeros((2,4))
+            denom = inner(cross(self.midpoints[3]-self.center, self.midpoints[0]-self.center), self.n)
+            self.C_skew[0,0] = inner(cross(self.vertices[0]-self.midpoints[3], self.midpoints[0]-self.center), self.n)/denom
+            self.C_skew[1,0] = inner(cross(self.midpoints[3]-self.center, self.vertices[0]-self.center), self.n)/denom
+            self.C_skew[0,1] = self.C_skew[0,0]
+            self.C_skew[1,1] = -self.C_skew[1,0]
+            self.C_skew[0,2] = -self.C_skew[0,0]
+            self.C_skew[1,2] = -self.C_skew[1,0]
+            self.C_skew[0,3] = -self.C_skew[0,0]
+            self.C_skew[1,3] = self.C_skew[1,0]
 
 
     def mirror(self, plane):
@@ -127,20 +202,6 @@ class Panel:
                          v2=refl_vert[0])
 
 
-    def _calc_projected_panel(self):
-        # Calculates the properties of this panel projected into the average plane
-
-        # Calculate projection matrix
-        P = np.eye(3)-np.einsum('i,j->ij', self.n, self.n)
-
-        # Project vertices
-        self.vertices_p = np.einsum('ij,kj->ki', P, self.vertices)
-
-        # Calculate edge tangents
-        self.t_p = np.roll(self.vertices, 1, axis=0)-self.vertices
-        self.t_p /= np.linalg.norm(self.t_p, axis=1, keepdims=True)
-
-
     def calc_local_coords(self, **kwargs):
         """Calculates the local coordinate system transform."""
 
@@ -158,11 +219,6 @@ class Panel:
         if abs(self._incl)<1e-10:
             raise MachInclinedError
         self._r = np.sign(self._incl)
-
-        # Calculate projected tangent vector compressible norms
-        self.t_p_comp_norm = np.zeros(self.N)
-        for i, t in enumerate(self.t_p):
-            self.t_p_comp_norm[i] = inner(t, t)-M**2*inner(c_0, t)**2
 
         # Get panel coordinate directions
         v_0 = cross(self.n, c_0)
@@ -185,7 +241,7 @@ class Panel:
                 half_panel.calc_local_coords(**kwargs)
 
 
-class Subpanel:
+class Subpanel(BasePanel):
     """Defines a subpanel to a panel.
 
     Parameters
@@ -198,6 +254,9 @@ class Subpanel:
 
     v2 : list
         Third corner vertex.
+        
+    projected : bool, optional
+        Whether this panel has been projected to the average plane. Defaults to False.
     """
 
     def __init__(self, **kwargs):
@@ -207,17 +266,23 @@ class Subpanel:
         self.vertices[0] = kwargs["v0"]
         self.vertices[1] = kwargs["v1"]
         self.vertices[2] = kwargs["v2"]
+        self._projected = kwargs.get("projected", False)
 
         # Calculate area
         n = cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[1])
         self.A = 0.5*norm(n)
 
-        # Calculate panel normal
-        self.n = 0.5*n/self.A
+        # Check for zero area in projected panel
+        if self.A<1e-10 and self._projected:
+            self.null_panel = True
+        else:
+            self.null_panel = False
 
-        # Calculate edge tangents
-        self.t = np.roll(self.vertices, 1, axis=0)-self.vertices
-        self.t /= np.linalg.norm(self.t, axis=1, keepdims=True)
+            # Calculate edge tangents
+            self.t = np.roll(self.vertices, 1, axis=0)-self.vertices
+            self.t /= np.linalg.norm(self.t, axis=1, keepdims=True)
+
+            self._calc_geom_props()
 
 
     def calc_local_coords(self, **kwargs):
@@ -247,10 +312,3 @@ class Subpanel:
         self._incl = inner(self.n, self.n_co)
         if abs(self._incl)<1e-10:
             raise MachInclinedError
-
-
-class MachInclinedError(Exception):
-    """An exception thrown when a panel is Mach inclined."""
-
-    def __init__(self):
-        super().__init__("This panel is Mach inclined.")
