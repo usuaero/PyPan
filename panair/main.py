@@ -111,7 +111,7 @@ class Main:
 
         # Determine s and B
         quant = 1.0-self.M**2
-        self._s = quant/abs(quant)
+        self._s = np.sign(quant)
         self._B = m.sqrt(self._s*quant)
 
         # Determine compressibility transformation matrix
@@ -127,8 +127,9 @@ class Main:
         self._c_0 = self._gamma_c[0]
 
         # Calculate metric matrices
-        self._C_0 = self._s*self._B*np.eye(3)+(1.0-self._s*self._B)*np.einsum('i,j->ij', self._c_0, self._c_0)
-        self._B_0 = np.eye(3)+(self._s*self._B-1.0)*np.einsum('i,j->ij', self._c_0, self._c_0)
+        c_0_c_0 = np.einsum('i,j', self._c_0, self._c_0)
+        self._C_0 = self._s*self._B**2*np.eye(3)+(1.0-self._s*self._B**2)*c_0_c_0
+        self._B_0 = np.eye(3)+(self._s*self._B**2-1.0)*c_0_c_0
 
         # Set up local coordinate systems
         self.mesh.calc_local_coords(c_0=self._c_0, B_0=self._B_0, C_0=self._C_0, s=self._s, B=self._B, M=self.M)

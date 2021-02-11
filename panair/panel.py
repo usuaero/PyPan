@@ -15,14 +15,9 @@ class BasePanel:
         self.N = self.vertices.shape[0]
 
         # Determine edge midpoints and center point (these all lie in the average plane of the panel)
-        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
         self.center = (1.0/self.N)*np.sum(self.vertices, axis=0).flatten()
 
-        # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
-        # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
-        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
-        self.n /= norm(self.n)
-
+        # Get radius and diameter
         self._calc_radius_and_diameter()
 
 
@@ -43,6 +38,58 @@ class BasePanel:
                 d = dist(vertex0, vertex1)
                 if d > self.diameter:
                     self.diameter = d
+
+
+    def calc_local_coords(self, **kwargs):
+        """Calculates panel local coords (dependent on flow properties).
+
+        Parameters
+        ----------
+        M : float
+            Freestream Mach number.
+        """
+
+        # Get kwargs
+        M = kwargs["M"]
+        c_0 = kwargs["c_0"]
+        C_0 = kwargs["C_0"]
+        B_0 = kwargs["B_0"]
+        s = kwargs["s"]
+        B = kwargs["B"]
+
+        # Calculate tangent vector compressible norms
+        if hasattr(self, "t"):
+            self.t_comp_norm = np.zeros(3)
+            for i, t in enumerate(self.t):
+                self.t_comp_norm[i] = inner(t, t)-M**2*inner(c_0, t)**2
+
+        # Calculate conormal vector
+        self.n_co = self.n-M**2*inner(c_0, self.n)*c_0
+
+        # Check inclination
+        self.n_co = np.einsum('ij,j', B_0, self.n)
+        self._incl = inner(self.n, self.n_co)
+        if abs(self._incl)<1e-10:
+            raise MachInclinedError
+        self._r = np.sign(self._incl)
+
+        # Get panel coordinate directions
+        v_0 = cross(self.n, c_0)
+        v_0 /= norm(v_0)
+        u_0 = cross(v_0, self.n)
+        u_0 /= norm(u_0)
+
+        # Calculate transformation matrix
+        self._A = np.zeros((3,3))
+        denom = abs(self._incl)**-0.5
+        self._A[0,:] = denom*np.einsum('ij,j', C_0, u_0)
+        self._A[1,:] = self._r*s/B*np.einsum('ij,j', C_0, v_0)
+        self._A[2,:] = B*denom*self.n
+
+        # Check determinant
+        D = np.linalg.det(self._A)
+        print(D)
+        print(B**2)
 
 
 class Panel(BasePanel):
@@ -77,14 +124,26 @@ class Panel(BasePanel):
         self.vertices[0] = kwargs.get("v0")
         self.vertices[1] = kwargs.get("v1")
         self.vertices[2] = kwargs.get("v2")
-        self.vertices[3] = kwargs.get("v3", self.vertices[2]) # Will get removed by _check_collapsed()
+        self.vertices[3] = kwargs.get("v3", self.vertices[2]) # Will get removed by _check_collapsed_vertices()
 
-        # Run misc checks and calculations
+        # Determine if this is a projected panel
         self._projected = kwargs.get("projected", False)
-        self._check_collapsed(kwargs.get("tol", 1e-8))
+
+        # Check for collapsed points
+        self._check_collapsed_vertices(kwargs.get("tol", 1e-8))
+
+        # Calculate midpoints
+        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
+
+        # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
+        # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
+        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
+        self.n /= norm(self.n)
+
+        # Other calculations
         self._calc_geom_props()
         if not self._projected:
-            self._calc_projected_panel()
+            self._initialize_projected_panel()
         self._calc_skewness()
 
         # Initialize subpanels
@@ -106,7 +165,7 @@ class Panel(BasePanel):
             self.half_panels = False
 
 
-    def _check_collapsed(self, tol):
+    def _check_collapsed_vertices(self, tol):
         # Determines if any of the vertices in this panel are collapsed (i.e. triangular panel)
 
         # Loop through vertices
@@ -125,7 +184,7 @@ class Panel(BasePanel):
             self.vertices = self.vertices[ind]
 
 
-    def _calc_projected_panel(self):
+    def _initialize_projected_panel(self):
         # Calculates the properties of this panel projected into the average plane
         # The normal vector and conormal vector will be the same
 
@@ -152,6 +211,7 @@ class Panel(BasePanel):
     def _calc_skewness(self):
         # Calculates the skewness parameters for this panel (if not triangular)
 
+        # Get skewness parameters for 4-sided panel
         if self.N==4:
             self.C_skew = np.zeros((2,4))
             denom = inner(cross(self.midpoints[3]-self.center, self.midpoints[0]-self.center), self.n)
@@ -213,23 +273,7 @@ class Panel(BasePanel):
         B = kwargs['B']
         M = kwargs['M']
 
-        # Calculate panel inclination
-        self.n_co = np.einsum('ij,j', B_0, self.n)
-        self._incl = inner(self.n, self.n_co)
-        if abs(self._incl)<1e-10:
-            raise MachInclinedError
-        self._r = np.sign(self._incl)
-
-        # Get panel coordinate directions
-        v_0 = cross(self.n, c_0)
-        u_0 = cross(v_0, self.n)
-
-        # Calculate transformation matrix
-        self._A = np.zeros((3,3))
-        d = abs(self._incl)**-0.5
-        self._A[0,:] = d*np.einsum('ij,j', C_0, u_0)
-        self._A[1,:] = self._r*s/B*np.einsum('ij,j', C_0, v_0)
-        self._A[1,:] = B*d*self.n
+        super().calc_local_coords(**kwargs)
 
         # Calculate properties for subpanels
         for subpanel in self.subpanels:
@@ -268,9 +312,11 @@ class Subpanel(BasePanel):
         self.vertices[2] = kwargs["v2"]
         self._projected = kwargs.get("projected", False)
 
-        # Calculate area
+        # Calculate area and normal vector
         n = cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[1])
-        self.A = 0.5*norm(n)
+        N = norm(n)
+        self.A = 0.5*N
+        self.n = n/N
 
         # Check for zero area in projected panel
         if self.A<1e-10 and self._projected:
@@ -283,32 +329,3 @@ class Subpanel(BasePanel):
             self.t /= np.linalg.norm(self.t, axis=1, keepdims=True)
 
             self._calc_geom_props()
-
-
-    def calc_local_coords(self, **kwargs):
-        """Calculates subpanel local coords (dependent on flow properties).
-
-        Parameters
-        ----------
-        M : float
-            Freestream Mach number.
-        """
-
-        # Get kwargs
-        M = kwargs["M"]
-        c_0 = kwargs["c_0"]
-        s = kwargs["s"]
-        B = kwargs["B"]
-
-        # Calculate tangent vector compressible norms
-        self.t_comp_norm = np.zeros(3)
-        for i, t in enumerate(self.t):
-            self.t_comp_norm[i] = inner(t, t)-M**2*inner(c_0, t)**2
-
-        # Calculate conormal vector
-        self.n_co = self.n-M**2*inner(c_0, self.n)*c_0
-
-        # Check inclination
-        self._incl = inner(self.n, self.n_co)
-        if abs(self._incl)<1e-10:
-            raise MachInclinedError
