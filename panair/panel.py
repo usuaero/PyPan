@@ -80,16 +80,15 @@ class BasePanel:
         u_0 /= norm(u_0)
 
         # Calculate transformation matrix
+        # It should be that det(A) = B**2 (see Epton & Magnus pp. E.3-16)
         self._A = np.zeros((3,3))
         denom = abs(self._incl)**-0.5
         self._A[0,:] = denom*np.einsum('ij,j', C_0, u_0)
         self._A[1,:] = self._r*s/B*np.einsum('ij,j', C_0, v_0)
         self._A[2,:] = B*denom*self.n
 
-        # Check determinant
-        D = np.linalg.det(self._A)
-        print(D)
-        print(B**2)
+        # Calculate area Jacobian
+        self._J = 1.0/B*denom
 
 
 class Panel(BasePanel):
