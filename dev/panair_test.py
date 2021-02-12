@@ -10,5 +10,5 @@ if __name__=="__main__":
 
     # Load case
     my_case = Main(input_file=input_file, verbose=True)
-    #my_case.plot_mesh()
+    my_case.plot_mesh()
     my_case.execute_case(verbose=True)

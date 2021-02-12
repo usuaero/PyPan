@@ -135,7 +135,7 @@ class Panel(BasePanel):
         self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
 
         # Calculate normal vector; this is simpler than the method used in PAN AIR, which is able to handle
-        # the case where the midpoints and center point do not lie in a flat plane [E.&M. D.2]
+        # the case where the midpoints and center point do not lie in a flat plane [Epton & Magnus section D.2]
         self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
         self.n /= norm(self.n)
 

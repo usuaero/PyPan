@@ -115,7 +115,7 @@ class Mesh:
         }
 
         # Set up plot
-        fig = plt.figure(figsize=plt.figaspect(1.0))
+        fig = plt.figure(figsize=plt.figaspect(1.0)*2.0)
         ax = fig.gca(projection='3d')
         
         # Plot vertices
