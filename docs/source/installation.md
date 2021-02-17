@@ -8,14 +8,6 @@ If you do not have Python installed on your machine, it can be downloaded from a
 
 You can either download the source as a ZIP file and extract the contents, or clone the PyPan repository using Git. If your system does not already have a version of Git installed, you will not be able to use this second option unless you first download and install Git. If you are unsure, you can check by typing `git --version` into a command prompt.
 
-### Downloading source as a ZIP file (Not recommended)
-
-1. Open a web browser and navigate to [https://github.com/usuaero/PyPan](https://github.com/usuaero/PyPan)
-2. Make sure the Branch is set to `Master`
-3. Click the `Clone or download` button
-4. Select `Download ZIP`
-5. Extract the downloaded ZIP file to a local directory on your machine
-
 ### Cloning the Github repository (Recommended)
 
 1. From the command prompt navigate to the directory where PyPan will be installed. Note: git will automatically create a folder within this directory called PyPan. Keep this in mind if you do not want multiple nested folders called PyPan.
@@ -23,9 +15,17 @@ You can either download the source as a ZIP file and extract the contents, or cl
 
     $ git clone https://github.com/usuaero/PyPan
 
-We recommend cloning from the repository, as this will allow you to most easily download and install periodic updates (because we will always be updating PyPan!). This can be done using the following command
+Cloning from the repository allows you to most easily download and install periodic updates (because we will always be updating PyPan!). This can be done using the following command
 
     $ git pull
+
+### Downloading source as a ZIP file (Not recommended)
+
+1. Open a web browser and navigate to [https://github.com/usuaero/PyPan](https://github.com/usuaero/PyPan)
+2. Make sure the Branch is set to `Master`
+3. Click the `Clone or download` button
+4. Select `Download ZIP`
+5. Extract the downloaded ZIP file to a local directory on your machine
 
 ## Installing
 

@@ -1,5 +1,5 @@
-MachUpX
-=======
+PyPan
+=====
 
 .. toctree::
    :maxdepth: 2
