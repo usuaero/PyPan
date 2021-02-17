@@ -122,7 +122,7 @@ class Mesh:
         for network in self._networks:
             for i in range(network.n_rows):
                 for j in range(network.n_cols):
-                    panel = network.panels[i,j]
+                    panel = network.panels[i,j].projected_panel
                     ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.kt], linewidth=0.2)
 
                     #for midpoint in panel.midpoints:

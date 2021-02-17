@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 
 from pypan.pp_math import dist, cross, norm, inner
@@ -57,7 +59,7 @@ class BasePanel:
         s = kwargs["s"]
         B = kwargs["B"]
 
-        # Calculate tangent vector compressible norms
+        # Calculate tangent vector compressible norms (if applicable)
         if hasattr(self, "t"):
             self.t_comp_norm = np.zeros(3)
             for i, t in enumerate(self.t):
@@ -141,9 +143,11 @@ class Panel(BasePanel):
 
         # Other calculations
         self._calc_geom_props()
+        self._calc_skewness()
+
+        # Setup projected panel
         if not self._projected:
             self._initialize_projected_panel()
-        self._calc_skewness()
 
         # Initialize subpanels
         self.subpanels = []
@@ -187,23 +191,28 @@ class Panel(BasePanel):
         # Calculates the properties of this panel projected into the average plane
         # The normal vector and conormal vector will be the same
 
-        # Calculate projection matrix
-        P = np.eye(3)-np.einsum('i,j->ij', self.n, self.n)
+        # For a 3-sided panel, it is already projected
+        if self.N == 3:
+            self.projected_panel = copy.copy(self)
 
-        # Project vertices
-        self.vertices_p = np.einsum('ij,kj->ki', P, self.vertices)
-
-        # Initialize new panel
-        if self.N==4:
-            self.projected_panel = Panel(v0=self.vertices[0],
-                                         v1=self.vertices[1],
-                                         v2=self.vertices[2],
-                                         v3=self.vertices[3],
-                                         projected=True)
         else:
-            self.projected_panel = Panel(v0=self.vertices[0],
-                                         v1=self.vertices[1],
-                                         v2=self.vertices[2],
+            # Calculate projection matrix
+            P = np.eye(3)-np.einsum('i,j->ij', self.n, self.n)
+
+            # Project vertices into average plane set at origin
+            vertices_p = np.einsum('ij,kj->ki', P, self.vertices)
+
+            # Determine offset from origin
+            offset = self.midpoints[0]-np.einsum('ij,j', P, self.midpoints[0])
+
+            # Apply offset to projected points
+            vertices_p += offset[np.newaxis,:]
+
+            # Initialize new panel
+            self.projected_panel = Panel(v0=vertices_p[0],
+                                         v1=vertices_p[1],
+                                         v2=vertices_p[2],
+                                         v3=vertices_p[3],
                                          projected=True)
 
     
