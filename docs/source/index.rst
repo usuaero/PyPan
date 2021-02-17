@@ -7,5 +7,8 @@ PyPan
 
    introduction
    installation
+   mesh
+   solvers
+   panair
    support
    developer_notes

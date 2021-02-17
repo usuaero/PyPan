@@ -1,6 +1,6 @@
 # For testing the PAN AIR capabilities.
 
-from panair.main import Main
+from panair import Main
 
 if __name__=="__main__":
 
