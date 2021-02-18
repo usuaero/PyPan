@@ -1,7 +1,11 @@
 Solvers
 =======
 
-There are various solvers written into PyPan.
+There are various solvers written into PyPan. Each is an instance of the Solver base class, which has the following available methods:
+
+.. automodule:: pypan.solvers
+.. autoclass:: Solver
+   :members:
 
 Vortex Ring (Constant Doublet) Solver
 -------------------------------------

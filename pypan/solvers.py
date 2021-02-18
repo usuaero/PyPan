@@ -1,5 +1,3 @@
-"""Defines classes for solving potential flow scenarios."""
-
 import time
 import os
 
@@ -238,11 +236,11 @@ class Solver:
     
     @abstractmethod
     def set_condition(self, **kwargs):
-        """Sets the aerodynamic condition."""
+        """Sets the aerodynamic condition. Specific behavior is defined in the derived classes."""
         pass
 
 
     @abstractmethod
     def solve(self, **kwargs):
-        """Solves the aerodynamics."""
+        """Solves the aerodynamics. Specific behavior is defined in the derived classes."""
         pass
