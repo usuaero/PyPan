@@ -171,14 +171,9 @@ class Mesh:
         # Get vertices
         self._vertices = np.copy(mesh_data.points)
 
-        # Initialze storage
-        self.N = mesh_data.n_faces
-        self.cp = np.array(mesh_data.get_array('panel_centroids'))
-        self.n = np.array(mesh_data.get_array('panel_normals'))
-        self.dA = np.array(mesh_data.get_array('panel_area'))
-
         # Initialize panels
         self.panels = []
+        self.N = mesh_data.n_faces
         self._panel_vertex_indices = []
         curr_ind = 0
         cell_info = mesh_data.faces
@@ -195,18 +190,12 @@ class Mesh:
             if n==3:
                 panel_obj = Tri(v0=vertices[0],
                                 v1=vertices[1],
-                                v2=vertices[2],
-                                n=self.n[i],
-                                v_c=self.cp[i],
-                                A=self.dA[i])
+                                v2=vertices[2])
             elif n==4:
                 panel_obj = Quad(v0=vertices[0],
                                  v1=vertices[1],
                                  v2=vertices[2],
-                                 v3=vertices[3],
-                                 n=self.n[i],
-                                 v_c=self.cp[i],
-                                 A=self.dA[i])
+                                 v3=vertices[3])
 
             # Check for zero area
             if abs(panel_obj.A)<1e-10:
@@ -217,6 +206,16 @@ class Mesh:
 
             # Update index
             curr_ind += n+1
+
+        # Store panel information
+        self.N = len(self.panels)
+        self.cp = np.zeros((self.N, 3))
+        self.n = np.zeros((self.N, 3))
+        self.dA = np.zeros(self.N)
+        for i in range(self.N):
+            self.cp[i] = self.panels[i].v_c
+            self.n[i] = self.panels[i].n
+            self.dA[i] = self.panels[i].A
 
 
     def _rescale_3D_axes(self, ax):

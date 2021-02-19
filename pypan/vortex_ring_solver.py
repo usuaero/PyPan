@@ -181,11 +181,11 @@ class VortexRingSolver(Solver):
 
         # Sum force components starting with the smallest magnitudes (for numerical stability)
         self._F = np.zeros(3)
-        x_sorted_ind = np.argsort(self._dF[:,0])
+        x_sorted_ind = np.argsort(self._dF[:,0])[::-1]
         self._F[0] = np.sum(self._dF[x_sorted_ind,0])
-        y_sorted_ind = np.argsort(self._dF[:,1])
+        y_sorted_ind = np.argsort(self._dF[:,1])[::-1]
         self._F[1] = np.sum(self._dF[y_sorted_ind,1])
-        z_sorted_ind = np.argsort(self._dF[:,2])
+        z_sorted_ind = np.argsort(self._dF[:,2])[::-1]
         self._F[2] = np.sum(self._dF[z_sorted_ind,2])
 
         # Determine moment contribution due to each panel
