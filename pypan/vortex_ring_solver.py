@@ -4,9 +4,9 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .solvers import Solver
-from .pp_math import norm, vec_norm, vec_inner, vec_cross
-from .helpers import OneLineProgress
+from pypan.solvers import Solver
+from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
+from pypan.helpers import OneLineProgress
 
 class VortexRingSolver(Solver):
     """Vortex ring solver.
@@ -24,7 +24,7 @@ class VortexRingSolver(Solver):
 
         if self._verbose:
             print()
-            prog = OneLineProgress(self._N_panels, msg="Determining panel influence matrix")
+            prog = OneLineProgress(self._N_panels, msg="Calculating panel influence matrix")
 
         # Create panel influence matrix; first index is the influenced panel, second is the influencing panel
         self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
