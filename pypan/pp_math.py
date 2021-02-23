@@ -7,7 +7,7 @@ import math as m
 def vec_norm(x):
     """Calculates the norm of the last dimension of x."""
     xT = x.T
-    return np.sqrt(xT[0]*xT[0]+xT[1]*xT[1]+xT[2]*xT[2])
+    return np.sqrt(xT[0]*xT[0]+xT[1]*xT[1]+xT[2]*xT[2]).T
 
 
 def norm(x):
@@ -24,7 +24,7 @@ def vec_inner(x, y):
     """Calculates the inner product of the last dimensions of x and y."""
     xT = x.T
     yT = y.T
-    return xT[0]*yT[0]+xT[1]*yT[1]+xT[2]*yT[2]
+    return (xT[0]*yT[0]+xT[1]*yT[1]+xT[2]*yT[2]).T
 
 
 def inner(x, y):

@@ -4,9 +4,9 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .solvers import Solver
-from .pp_math import norm, vec_norm, vec_inner, vec_cross
-from .helpers import OneLineProgress
+from pypan.solvers import Solver
+from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
+from pypan.helpers import OneLineProgress
 
 class VortexRingSolver(Solver):
     """Vortex ring solver.
@@ -24,7 +24,7 @@ class VortexRingSolver(Solver):
 
         if self._verbose:
             print()
-            prog = OneLineProgress(self._N_panels, msg="Determining panel influence matrix")
+            prog = OneLineProgress(self._N_panels, msg="Calculating panel influence matrix")
 
         # Create panel influence matrix; first index is the influenced panel, second is the influencing panel
         self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
@@ -181,11 +181,11 @@ class VortexRingSolver(Solver):
 
         # Sum force components starting with the smallest magnitudes (for numerical stability)
         self._F = np.zeros(3)
-        x_sorted_ind = np.argsort(self._dF[:,0])
+        x_sorted_ind = np.argsort(self._dF[:,0])[::-1]
         self._F[0] = np.sum(self._dF[x_sorted_ind,0])
-        y_sorted_ind = np.argsort(self._dF[:,1])
+        y_sorted_ind = np.argsort(self._dF[:,1])[::-1]
         self._F[1] = np.sum(self._dF[y_sorted_ind,1])
-        z_sorted_ind = np.argsort(self._dF[:,2])
+        z_sorted_ind = np.argsort(self._dF[:,2])[::-1]
         self._F[2] = np.sum(self._dF[z_sorted_ind,2])
 
         # Determine moment contribution due to each panel

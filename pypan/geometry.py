@@ -47,9 +47,38 @@ class Panel:
         self.n = N/norm(N)
 
 
-    @abstractmethod
     def _calc_centroid(self):
-        pass
+        # Calculates the centroid of the panel
+        self.v_c = 1.0/self.N*np.sum(self.vertices, axis=0).flatten()
+
+
+    def get_ring_influence(self, points):
+        """Determines the velocity vector induced by this panel at arbitrary
+        points, assuming a vortex ring (0th order) model and a unit positive
+        vortex strength.
+
+        Parameters
+        ----------
+        points : ndarray
+            An array of points where the first index is the point index and 
+            the second index is the coordinate.
+
+        Returns
+        -------
+        ndarray
+            The velocity vector induced at each point.
+        """
+
+        # Determine displacement vectors
+        r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
+        r_mag = vec_norm(r)
+
+        # Calculate influence
+        v = np.zeros_like(points)
+        for i in range(self.N):
+            v += vec_cross(r[i-1], r[i])*((r_mag[i-1]+r_mag[i])/(r_mag[i-1]*r_mag[i]*(r_mag[i-1]*r_mag[i]+vec_inner(r[i-1], r[i]))))[:,np.newaxis]
+
+        return 0.25/np.pi*v
 
 
     @abstractmethod
@@ -74,7 +103,22 @@ class Quad(Panel):
         self.vertices[2] = kwargs.get("v2")
         self.vertices[3] = kwargs.get("v3")
 
+        self.N = 4
+
         super().__init__(**kwargs)
+
+
+    def _calc_area(self):
+        # Calculates the panel area from the two constituent triangles
+        self.A = 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))
+        self.A += 0.5*norm(cross(self.vertices[2]-self.vertices[0], self.vertices[3]-self.vertices[0]))
+
+
+    def _calc_normal(self):
+        # Calculates the normal based off of the edge midpoints
+        midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
+        self.n = cross(midpoints[1]-midpoints[0], midpoints[2]-midpoints[1])
+        self.n /= norm(self.n)
 
 
 class Tri(Panel):
@@ -88,59 +132,14 @@ class Tri(Panel):
         self.vertices[1] = kwargs.get("v1")
         self.vertices[2] = kwargs.get("v2")
 
+        self.N = 3
+
         super().__init__(**kwargs)
 
 
     def _calc_area(self):
         # Calculates the panel area
-
-        # Get vector components
-        nx, ny, nz = self.n
-        x0, y0, z0 = self.vertices[0]
-        x1, y1, z1 = self.vertices[1]
-        x2, y2, z2 = self.vertices[2]
-
-        # Get the area using Stoke's theorem
-        dA0 = 0.5*ny*(z1+z0)*(x1-x0)\
-             +0.5*nz*(x1+x0)*(y1-y0)\
-             +0.5*nx*(y1+y0)*(z1-z0)
-        dA1 = 0.5*ny*(z2+z1)*(x2-x1)\
-             +0.5*nz*(x2+x1)*(y2-y1)\
-             +0.5*nx*(y2+y1)*(z2-z1)
-        dA2 = 0.5*ny*(z0+z2)*(x0-x2)\
-             +0.5*nz*(x0+x2)*(y0-y2)\
-             +0.5*nx*(y0+y2)*(z0-z2)
-
-        self.A = dA0+dA1+dA2
-
-    
-    def _calc_centroid(self):
-        # Calculates the location of the panel centroid
-
-        # Construct transformation matrix
-        T = np.zeros((3,3))
-        T[0] = self.vertices[1]-self.vertices[0]
-        T[0] /= norm(T[0])
-        T[1] = cross(self.n, T[0])
-        T[2] = np.copy(self.n)
-        
-        # Transform vertices
-        v0_p = np.einsum('ij,j', T, self.vertices[0])
-        v1_p = np.einsum('ij,j', T, self.vertices[1])
-        v2_p = np.einsum('ij,j', T, self.vertices[2])
-
-        # Get transformed coordinates of centroid
-        x_c_p = 1.0/(6.0*self.A)*(
-            (v0_p[0]+v1_p[0])*(v0_p[0]*v1_p[1]-v1_p[0]*v0_p[1])+
-            (v1_p[0]+v2_p[0])*(v1_p[0]*v2_p[1]-v2_p[0]*v1_p[1])+
-            (v2_p[0]+v0_p[0])*(v2_p[0]*v0_p[1]-v0_p[0]*v2_p[1]))
-        y_c_p = 1.0/(6.0*self.A)*(
-            (v0_p[1]+v1_p[1])*(v0_p[0]*v1_p[1]-v1_p[0]*v0_p[1])+
-            (v1_p[1]+v2_p[1])*(v1_p[0]*v2_p[1]-v2_p[0]*v1_p[1])+
-            (v2_p[1]+v0_p[1])*(v2_p[0]*v0_p[1]-v0_p[0]*v2_p[1]))
-
-        # Transform back to standard coordinates
-        self.v_c = np.einsum('ji,j', T, np.array([x_c_p, y_c_p, v0_p[2]]))
+        self.A = 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))
 
 
     def __str__(self):
@@ -162,41 +161,6 @@ class Tri(Panel):
                      self.v_c[2],
                      self.A)
         return s
-
-
-    def get_ring_influence(self, points):
-        """Determines the velocity vector induced by this panel at arbitrary
-        points, assuming a vortex ring (0th order) model and a unit positive
-        vortex strength.
-
-        Parameters
-        ----------
-        points : ndarray
-            An array of points where the first index is the point index and 
-            the second index is the coordinate.
-
-        Returns
-        -------
-        ndarray
-            The velocity vector induced at each point.
-        """
-
-        # Determine displacement vectors
-        r0 = points-self.vertices[0,:]
-        r1 = points-self.vertices[1,:]
-        r2 = points-self.vertices[2,:]
-
-        # Determine displacement vector magnitudes
-        r0_mag = vec_norm(r0)[:,np.newaxis]
-        r1_mag = vec_norm(r1)[:,np.newaxis]
-        r2_mag = vec_norm(r2)[:,np.newaxis]
-
-        # Calculate influence
-        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1)[:,np.newaxis]))
-        v_12 = ((r1_mag+r2_mag)*vec_cross(r1, r2))/(r1_mag*r2_mag*(r1_mag*r2_mag+vec_inner(r1, r2)[:,np.newaxis]))
-        v_20 = ((r2_mag+r0_mag)*vec_cross(r2, r0))/(r2_mag*r0_mag*(r2_mag*r0_mag+vec_inner(r2, r0)[:,np.newaxis]))
-
-        return 0.25/np.pi*(v_01+v_12+v_20)
 
 
 class KuttaEdge:
