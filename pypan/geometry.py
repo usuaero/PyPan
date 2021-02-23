@@ -33,9 +33,9 @@ class Panel:
             self._calc_centroid()
 
         # Initialize some storage
-        self.adjacent_panels = []
-        self.adjacent_panels_across_kutta_edge = []
-        self.adjacent_panels_not_across_kutta_edge = []
+        self.touching_panels = [] # Panels which share at least one vertex with this panel
+        self.abutting_panels = [] # Panels which share two vertices with this panel
+        self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
 
 
     def _calc_normal(self):

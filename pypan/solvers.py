@@ -73,7 +73,7 @@ class Solver:
         table_data[:]["dFx"] = self._dF[:,0]
         table_data[:]["dFy"] = self._dF[:,1]
         table_data[:]["dFz"] = self._dF[:,2]
-        table_data[:]["circ"] = self._gamma[:self._N_panels]
+        table_data[:]["circ"] = self._mu[:self._N_panels]
 
         # Define header and output
         header = "{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}".format(
@@ -139,12 +139,12 @@ class Solver:
             for C_P in self._C_P:
                 print("{0:<20.12}".format(C_P), file=export_handle)
 
-            # Circulation
-            if hasattr(self, "_gamma"):
-                print("SCALARS circulation float 1", file=export_handle)
+            # Potential
+            if hasattr(self, "_mu"):
+                print("SCALARS doublet_strength float 1", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
-                for gamma in self._gamma:
-                    print("{0:<20.12}".format(gamma), file=export_handle)
+                for mu in self._mu:
+                    print("{0:<20.12}".format(mu), file=export_handle)
 
             # Velocity
             if hasattr(self, "_v"):
@@ -157,6 +157,12 @@ class Solver:
                 print("LOOKUP_TABLE default", file=export_handle)
                 for v_n in vec_inner(self._v, self._mesh.n):
                     print("{0:<20.12}".format(v_n), file=export_handle)
+
+            # Gradient of potential
+            if hasattr(self, "_grad_mu"):
+                print("VECTORS doublet_gradient float", file=export_handle)
+                for grad_mu in self._grad_mu:
+                    print("{0:<20.12} {1:<20.12} {2:<20.12}".format(grad_mu[0], grad_mu[1], grad_mu[2]), file=export_handle)
 
 
     def alpha_sweep(self, **kwargs):

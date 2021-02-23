@@ -72,25 +72,33 @@ if __name__=="__main__":
     print(json.dumps(FM, indent=4))
 
     # Export vtk
-    vtk_file = "dev/meshes/swept_wing.vtk"
+    vtk_file = "dev/meshes/swept_wing_vtk.vtk"
     scene.export_vtk(filename=vtk_file, section_resolution=51)
 
     # Export stl
-    stl_file = "dev/meshes/swept_wing.stl"
+    stl_file = "dev/meshes/swept_wing_stl.stl"
     scene.export_stl(filename=stl_file, section_resolution=51)
 
     # Run PyPan with vtk mesh
+    print("VTK Mesh")
     mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    FM = solver.solve(lifting=True, verbose=True)
-    print(FM)
-    solver.export_vtk(mesh_file.replace("meshes", "results"))
+    F, M = solver.solve(lifting=True, verbose=True)
+    print("Force Vector: {0}".format(F))
+    print("Moment Vector: {0}".format(M))
+    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
+    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
+    solver.export_vtk(vtk_file.replace("meshes", "results"))
 
     # Run PyPan with stl mesh
-    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
+    print("STL Mesh")
+    mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    FM = solver.solve(lifting=True, verbose=True)
-    print(FM)
-    solver.export_vtk(mesh_file.replace("meshes", "results").replace(".stl", ".vtk"))
+    F, M = solver.solve(lifting=True, verbose=True)
+    print("Force Vector: {0}".format(F))
+    print("Moment Vector: {0}".format(M))
+    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
+    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
+    solver.export_vtk(stl_file.replace("meshes", "results").replace(".stl", ".vtk"))

@@ -245,87 +245,6 @@ class Mesh:
         ax.set_zlim3d(z_avg-max_diff, z_avg+max_diff)
 
 
-    def _find_kutta_edges(self, **kwargs):
-        # Determines where Kutta condition should exist; relies on an adjacency mapping already being created
-
-        # Get Kutta angle
-        theta_K = kwargs.get("kutta_angle", None)
-
-        # Look for adjacent panels where the Kutta condition should be applied
-        if theta_K is not None:
-            theta_K = np.radians(theta_K)
-
-            if self._verbose:
-                print()
-                prog = OneLineProgress(self.N, msg="Determining locations to apply Kutta condition")
-
-            # Get panel angles
-            with np.errstate(invalid='ignore'):
-                theta = np.abs(np.arccos(np.einsum('ijk,ijk->ij', self.n[:,np.newaxis], self.n[np.newaxis,:])))
-
-            # Determine which panels have an angle greater than the Kutta angle
-            angle_greater = (theta>theta_K).astype(int)
-            i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
-
-            # Initialize edge storage
-            self.kutta_edges = []
-
-            # Loop through possible combinations
-            for i in i_panels:
-                panel_i = self.panels[i]
-
-                # Determine if we're adjacent
-                j_panels = np.argwhere(angle_greater[i]).flatten()
-                for j in panel_i.adjacent_panels:
-
-                    # Don't repeat
-                    if j <= i:
-                        continue
-
-                    # Check angle
-                    if j in j_panels:
-                        panel_j = self.panels[j]
-                    
-                        # Get edge vertices
-                        v0 = None
-                        for ii, vi in enumerate(panel_i.vertices):
-                            for vj in panel_j.vertices:
-
-                                # Check distance
-                                d = norm(vi-vj)
-                                if d<1e-10:
-
-                                    # Store first
-                                    if v0 is None:
-                                        v0 = vi
-                                        ii0 = ii
-
-                                    # Initialize edge object; vertices are stored in the same order as the first panel
-                                    else:
-                                        if ii-ii0 == 1: # Order is important for definition of circulation
-                                            self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
-                                        else:
-                                            self.kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
-                                        break
-
-                if self._verbose:
-                    prog.display()
-
-
-            self.N_edges = len(self.kutta_edges)
-
-            # Store adjacent panels not across edge
-            for i, panel in enumerate(self.panels):
-                for j in panel.adjacent_panels:
-                    if angle_greater[i,j]:
-                        panel.adjacent_panels_across_kutta_edge.append(j)
-                    else:
-                        panel.adjacent_panels_not_across_kutta_edge.append(j)
-
-        else:
-            self.N_edges = 0
-
-
     def _check_for_vertex(self, vertex, v_list):
         # Checks for the vertex in the list; if there, the index is returned
 
@@ -388,7 +307,7 @@ class Mesh:
 
         if self._verbose:
             print()
-            prog = OneLineProgress(self.N, msg="Locating adjacent panels")
+            prog = OneLineProgress(self.N, msg="Locating touching and abutting panels")
 
         # Loop through possible combinations
         for i, panel_i in enumerate(self.panels):
@@ -396,16 +315,107 @@ class Mesh:
             for j in range(i+1, self.N):
                 panel_j = self.panels[j]
                 
-                # Determine if we're adjacent
+                # Determine if we're touching and/or abutting
+                num_shared = 0
                 for i_vert in self._panel_vertex_indices[i][1:]:
 
-                    if i_vert in self._panel_vertex_indices[j][1:] and j not in panel_i.adjacent_panels:
-                        panel_i.adjacent_panels.append(j)
-                        panel_j.adjacent_panels.append(i)
-                        break
+                    # Check for shared vertex
+                    if i_vert in self._panel_vertex_indices[j][1:]:
+                        num_shared += 1
+                        if num_shared==2:
+                            break # Don't need to keep going
+                        
+                # Touching panels (at least one shared vertex)
+                if num_shared>0 and j not in panel_i.touching_panels:
+                    panel_i.touching_panels.append(j)
+                    panel_j.touching_panels.append(i)
+
+                # Abutting panels (two shared vertices)
+                if num_shared==2 and j not in panel_i.abutting_panels:
+                    panel_i.abutting_panels.append(j)
+                    panel_j.abutting_panels.append(i)
 
             if self._verbose:
                 prog.display()
+
+
+    def _find_kutta_edges(self, **kwargs):
+        # Determines where Kutta condition should exist; relies on an adjacency mapping already being created
+
+        # Get Kutta angle
+        theta_K = kwargs.get("kutta_angle", None)
+
+        # Look for adjacent panels where the Kutta condition should be applied
+        if theta_K is not None:
+            theta_K = np.radians(theta_K)
+
+            if self._verbose:
+                print()
+                prog = OneLineProgress(self.N, msg="Determining locations to apply Kutta condition")
+
+            # Get panel angles
+            with np.errstate(invalid='ignore'):
+                theta = np.abs(np.arccos(np.einsum('ijk,ijk->ij', self.n[:,np.newaxis], self.n[np.newaxis,:])))
+
+            # Determine which panels have an angle greater than the Kutta angle
+            angle_greater = (theta>theta_K).astype(int)
+            i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
+
+            # Initialize edge storage
+            self.kutta_edges = []
+
+            # Loop through possible combinations
+            for i in i_panels:
+                panel_i = self.panels[i]
+
+                # Determine if we're adjacent
+                j_panels = np.argwhere(angle_greater[i]).flatten()
+                for j in panel_i.touching_panels:
+
+                    # Don't repeat
+                    if j <= i:
+                        continue
+
+                    # Check angle
+                    if j in j_panels:
+                        panel_j = self.panels[j]
+                    
+                        # Get edge vertices
+                        v0 = None
+                        for ii, vi in enumerate(panel_i.vertices):
+                            for vj in panel_j.vertices:
+
+                                # Check distance
+                                d = norm(vi-vj)
+                                if d<1e-10:
+
+                                    # Store first
+                                    if v0 is None:
+                                        v0 = vi
+                                        ii0 = ii
+
+                                    # Initialize edge object; vertices are stored in the same order as the first panel
+                                    else:
+                                        if ii-ii0 == 1: # Order is important for definition of circulation
+                                            self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                        else:
+                                            self.kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
+                                        break
+
+                if self._verbose:
+                    prog.display()
+
+
+            self.N_edges = len(self.kutta_edges)
+
+            # Store abutting panels not across edge
+            for i, panel in enumerate(self.panels):
+                for j in panel.abutting_panels:
+                    if not angle_greater[i,j]:
+                        panel.abutting_panels_not_across_kutta_edge.append(j)
+
+        else:
+            self.N_edges = 0
 
 
     def plot(self, **kwargs):
@@ -437,7 +447,7 @@ class Mesh:
         
         ## Plot adjacency
         #ind = 0
-        #neighbors = self.panels[ind].adjacent_panels
+        #neighbors = self.panels[ind].touching_panels
         #ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
         #for i in neighbors:
         #    ax.plot(self.panels[i].v_c[0], self.panels[i].v_c[1], self.panels[i].v_c[2], 'g.')
@@ -554,7 +564,7 @@ class Mesh:
         for i, panel in enumerate(self.panels):
 
             # Get centroids of neighboring panels
-            neighbors = panel.adjacent_panels_not_across_kutta_edge
+            neighbors = panel.abutting_panels_not_across_kutta_edge
             neighbor_centroids = self.cp[neighbors]
             neighbor_phis = phi[neighbors]
 

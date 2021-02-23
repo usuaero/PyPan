@@ -92,11 +92,11 @@ class VortexRingSolver(Solver):
             if self._N_edges==0:
                 raise RuntimeError("Lifting case cannot be solved for a geometry with no Kutta edges.")
 
-            # Create horseshoe vortex influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel
             if self._verbose:
                 print()
                 prog = OneLineProgress(self._mesh.N_edges, "Determining wake influence")
 
+            # Create horseshoe vortex influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel
             self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
             for edge in self._mesh.kutta_edges:
                 p_ind = edge.panel_indices
@@ -129,24 +129,24 @@ class VortexRingSolver(Solver):
 
         # Solve system
         if method == "svd": # Singular value decomposition
-            self._gamma, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+            self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
 
         elif method == "qr": # QR factorization
             q, r = np.linalg.qr(A)
             c = np.einsum('ij,i', q, b)
-            self._gamma = np.linalg.solve(r[:self._N_panels,:self._N_panels], c)
+            self._mu = np.linalg.solve(r[:self._N_panels,:self._N_panels], c)
 
         elif method == "direct": # Not sure how this works...
             if lifting:
-                self._gamma = np.linalg.solve(A, b)
+                self._mu = np.linalg.solve(A, b)
             else:
-                self._gamma = np.linalg.solve(self._A_panels, self._b)
+                self._mu = np.linalg.solve(self._A_panels, self._b)
 
         # Print computation results
         end_time = time.time()
         if self._verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-            print("    Circulation sum: {0}".format(np.sum(self._gamma)))
+            print("    Circulation sum: {0}".format(np.sum(self._mu)))
 
             if method == "svd":
                 try:
@@ -161,44 +161,38 @@ class VortexRingSolver(Solver):
         start_time = time.time()
 
         # Determine velocities at each control point induced by panels
-        self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._gamma)
+        self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)
 
         # Include vortex sheet principal value in the velocity
-        self._grad_gamma = self._mesh.get_gradient(self._gamma)
-        self._v -= 0.5*np.matmul(self._P_surf, self._grad_gamma[:,:,np.newaxis]).reshape(self._v.shape)
+        self._grad_mu = self._mesh.get_gradient(self._mu)
+        self._v -= 0.5*np.matmul(self._P_surf, self._grad_mu[:,:,np.newaxis]).reshape(self._v.shape)
 
         # Determine velocities induced by horseshoe vortices
         if lifting:
-            self._v += np.sum(self._vortex_influence_matrix*self._gamma[np.newaxis,:,np.newaxis], axis=1)
+            self._v += np.sum(self._vortex_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)
         self._C_P = 1.0-(self._V*self._V)/self._V_inf_2
-        end_time = time.time()
 
         # Determine force acting on each panel
-        self._dF = -(self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
+        self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
 
-        # Sum force components starting with the smallest magnitudes (for numerical stability)
+        # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
         self._F = np.zeros(3)
-        x_sorted_ind = np.argsort(self._dF[:,0])[::-1]
-        self._F[0] = np.sum(self._dF[x_sorted_ind,0])
-        y_sorted_ind = np.argsort(self._dF[:,1])[::-1]
-        self._F[1] = np.sum(self._dF[y_sorted_ind,1])
-        z_sorted_ind = np.argsort(self._dF[:,2])[::-1]
-        self._F[2] = np.sum(self._dF[z_sorted_ind,2])
+        self._F[0] = np.sum(self._dF[:,0])
+        self._F[1] = np.sum(self._dF[:,1])
+        self._F[2] = np.sum(self._dF[:,2])
 
         # Determine moment contribution due to each panel
         self._dM = vec_cross(self._mesh.r_CG, self._dF)
 
         # Sum moment components
         self._M = np.zeros(3)
-        x_sorted_ind = np.argsort(self._dM[:,0])
-        self._M[0] = np.sum(self._dM[x_sorted_ind,0])
-        y_sorted_ind = np.argsort(self._dM[:,1])
-        self._M[1] = np.sum(self._dM[y_sorted_ind,1])
-        z_sorted_ind = np.argsort(self._dM[:,2])
-        self._M[2] = np.sum(self._dM[z_sorted_ind,2])
+        self._M[0] = np.sum(self._dM[:,0])
+        self._M[1] = np.sum(self._dM[:,1])
+        self._M[2] = np.sum(self._dM[:,2])
 
+        end_time = time.time()
         if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
         return self._F, self._M
