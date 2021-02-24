@@ -24,67 +24,6 @@ class Solver:
         self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._mesh.n[:,:,np.newaxis], self._mesh.n[:,np.newaxis,:])
 
 
-    def export_case_data(self, filename):
-        """Writes the case data to the given file.
-
-        Parameters
-        ----------
-        filename : str
-            File location at which to store the case data.
-        """
-
-        # Setup data table
-        item_types = [("cpx", "float"),
-                      ("cpy", "float"),
-                      ("cpz", "float"),
-                      ("nx", "float"),
-                      ("ny", "float"),
-                      ("nz", "float"),
-                      ("area", "float"),
-                      ("u", "float"),
-                      ("v", "float"),
-                      ("w", "float"),
-                      ("V", "float"),
-                      ("C_P", "float"),
-                      ("dFx", "float"),
-                      ("dFy", "float"),
-                      ("dFz", "float"),
-                      ("circ", "float")]
-
-        table_data = np.zeros(self._N_panels, dtype=item_types)
-
-        # Geometry
-        table_data[:]["cpx"] = self._mesh.cp[:,0]
-        table_data[:]["cpy"] = self._mesh.cp[:,1]
-        table_data[:]["cpz"] = self._mesh.cp[:,2]
-        table_data[:]["nx"] = self._mesh.n[:,0]
-        table_data[:]["ny"] = self._mesh.n[:,1]
-        table_data[:]["nz"] = self._mesh.n[:,2]
-        table_data[:]["area"] = self._mesh.dA
-
-        # Velocities
-        table_data[:]["u"] = self._v[:,0]
-        table_data[:]["v"] = self._v[:,1]
-        table_data[:]["w"] = self._v[:,2]
-        table_data[:]["V"] = self._V
-        table_data[:]["C_P"] = self._C_P
-
-        # Circulation and forces
-        table_data[:]["dFx"] = self._dF[:,0]
-        table_data[:]["dFy"] = self._dF[:,1]
-        table_data[:]["dFz"] = self._dF[:,2]
-        table_data[:]["circ"] = self._mu[:self._N_panels]
-
-        # Define header and output
-        header = "{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}".format(
-                 "Control (x)", "Control (y)", "Control (z)", "nx", "ny", "nz", "Area", "u", "v", "w", "V", "C_P", "dFx", "dFy",
-                 "dFz", "circ")
-        format_string = "%20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e"
-
-        # Save
-        np.savetxt(filename, table_data, fmt=format_string, header=header)
-
-
     def export_vtk(self, filename):
         """Exports the mesh(es) and solver results to a VTK file.
 
@@ -164,6 +103,10 @@ class Solver:
                 for grad_mu in self._grad_mu:
                     print("{0:<20.12} {1:<20.12} {2:<20.12}".format(grad_mu[0], grad_mu[1], grad_mu[2]), file=export_handle)
 
+        if self._verbose:
+            print()
+            print("Case results successfully written to '{0}'.".format(filename))
+
 
     def alpha_sweep(self, **kwargs):
         """Sweeps the solver through a range of angle of attack. Note this will always solve the lifting case.
@@ -238,6 +181,67 @@ class Solver:
         F_w[:,2] = S_a*F[:,0]-C_a*F[:,2]
 
         return np.degrees(alphas), F, F_w
+
+
+    def export_case_data(self, filename):
+        """Writes the case data to the given file.
+
+        Parameters
+        ----------
+        filename : str
+            File location at which to store the case data.
+        """
+
+        # Setup data table
+        item_types = [("cpx", "float"),
+                      ("cpy", "float"),
+                      ("cpz", "float"),
+                      ("nx", "float"),
+                      ("ny", "float"),
+                      ("nz", "float"),
+                      ("area", "float"),
+                      ("u", "float"),
+                      ("v", "float"),
+                      ("w", "float"),
+                      ("V", "float"),
+                      ("C_P", "float"),
+                      ("dFx", "float"),
+                      ("dFy", "float"),
+                      ("dFz", "float"),
+                      ("circ", "float")]
+
+        table_data = np.zeros(self._N_panels, dtype=item_types)
+
+        # Geometry
+        table_data[:]["cpx"] = self._mesh.cp[:,0]
+        table_data[:]["cpy"] = self._mesh.cp[:,1]
+        table_data[:]["cpz"] = self._mesh.cp[:,2]
+        table_data[:]["nx"] = self._mesh.n[:,0]
+        table_data[:]["ny"] = self._mesh.n[:,1]
+        table_data[:]["nz"] = self._mesh.n[:,2]
+        table_data[:]["area"] = self._mesh.dA
+
+        # Velocities
+        table_data[:]["u"] = self._v[:,0]
+        table_data[:]["v"] = self._v[:,1]
+        table_data[:]["w"] = self._v[:,2]
+        table_data[:]["V"] = self._V
+        table_data[:]["C_P"] = self._C_P
+
+        # Circulation and forces
+        table_data[:]["dFx"] = self._dF[:,0]
+        table_data[:]["dFy"] = self._dF[:,1]
+        table_data[:]["dFz"] = self._dF[:,2]
+        table_data[:]["circ"] = self._mu[:self._N_panels]
+
+        # Define header and output
+        header = "{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}".format(
+                 "Control (x)", "Control (y)", "Control (z)", "nx", "ny", "nz", "Area", "u", "v", "w", "V", "C_P", "dFx", "dFy",
+                 "dFz", "circ")
+        format_string = "%20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e"
+
+        # Save
+        np.savetxt(filename, table_data, fmt=format_string, header=header)
 
     
     @abstractmethod

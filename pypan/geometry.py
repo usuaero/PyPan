@@ -22,6 +22,9 @@ class Panel:
             if norm(self.n) != 0.0:
                 self.n = self.n/norm(self.n)
 
+        # Calculate panel plane projection matrix
+        self.P_surf = np.identity(3)-np.matmul(self.n, self.n)
+
         # Determine area
         self.A = kwargs.get("A", None)
         if self.A is None:
@@ -37,6 +40,8 @@ class Panel:
         self.abutting_panels = [] # Panels which share two vertices with this panel
         self.touching_panels_not_across_kutta_edge = [] # Panels which share at least one vertex with this panel where those two vertices do not define a Kutta edge
         self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
+        self.second_abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel or its abutting panels where those two vertices do not define a Kutta edge
+        self.gradient_panels = self.second_abutting_panels_not_across_kutta_edge
 
 
     def _calc_normal(self):
@@ -103,10 +108,18 @@ class Quad(Panel):
         self.vertices[1] = kwargs.get("v1")
         self.vertices[2] = kwargs.get("v2")
         self.vertices[3] = kwargs.get("v3")
+        self.midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
 
         self.N = 4
 
         super().__init__(**kwargs)
+
+        # Set up local coordinate transformation
+        self.A_t = np.zeros((3,3))
+        self.A_t[0] = self.midpoints[1]-self.midpoints[0]
+        self.A_t[0] /= norm(self.A_t[0])
+        self.A_t[1] = cross(self.n, self.A_t[0])
+        self.A_t[2] = self.n
 
 
     def _calc_area(self):
@@ -117,8 +130,7 @@ class Quad(Panel):
 
     def _calc_normal(self):
         # Calculates the normal based off of the edge midpoints
-        midpoints = 0.5*(self.vertices+np.roll(self.vertices, 1, axis=0))
-        self.n = cross(midpoints[1]-midpoints[0], midpoints[2]-midpoints[1])
+        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
         self.n /= norm(self.n)
 
 
@@ -136,6 +148,13 @@ class Tri(Panel):
         self.N = 3
 
         super().__init__(**kwargs)
+
+        # Set up local coordinate transformation
+        self.A_t = np.zeros((3,3))
+        self.A_t[0] = self.vertices[1]-self.vertices[0]
+        self.A_t[0] /= norm(self.A_t[0])
+        self.A_t[1] = cross(self.n, self.A_t[0])
+        self.A_t[2] = self.n
 
 
     def _calc_area(self):

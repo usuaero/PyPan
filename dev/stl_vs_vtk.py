@@ -87,25 +87,10 @@ if __name__=="__main__":
     vtk_file = "dev/meshes/swept_wing_vtk.vtk"
     scene.export_vtk(filename=vtk_file, section_resolution=71)
 
-    # Run PyPan with stl mesh
-    print()
-    print("STL Mesh")
-    mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
-    mesh.plot()
-    solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
-    solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    F, M = solver.solve(lifting=True, verbose=True)
-    print()
-    print("Force Vector: {0}".format(F))
-    print("Moment Vector: {0}".format(M))
-    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
-    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
-    solver.export_vtk(stl_file.replace("meshes", "results").replace(".stl", ".vtk"))
-
     # Run PyPan with vtk mesh
     print()
     print("VTK Mesh")
-    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
+    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True, gradient_fit_type='quad')
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
     F, M = solver.solve(lifting=True, verbose=True)
@@ -115,3 +100,18 @@ if __name__=="__main__":
     print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
     print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
     solver.export_vtk(vtk_file.replace("meshes", "results"))
+
+    # Run PyPan with stl mesh
+    print()
+    print("STL Mesh")
+    mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True, gradient_fit_type='linear')
+    #mesh.plot()
+    solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
+    solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
+    F, M = solver.solve(lifting=True, verbose=True)
+    print()
+    print("Force Vector: {0}".format(F))
+    print("Moment Vector: {0}".format(M))
+    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
+    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
+    solver.export_vtk(stl_file.replace("meshes", "results").replace(".stl", ".vtk"))

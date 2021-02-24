@@ -165,7 +165,8 @@ class VortexRingSolver(Solver):
 
         # Include vortex sheet principal value in the velocity
         self._grad_mu = self._mesh.get_gradient(self._mu)
-        self._v -= 0.5*np.matmul(self._P_surf, self._grad_mu[:,:,np.newaxis]).reshape(self._v.shape)
+        self._grad_mu_in_plane = np.einsum('ijk,ik->ij', self._P_surf, self._grad_mu)
+        self._v -= 0.5*self._grad_mu_in_plane
 
         # Determine velocities induced by horseshoe vortices
         if lifting:

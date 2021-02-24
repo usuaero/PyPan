@@ -53,6 +53,10 @@ class Mesh:
         Location of the center of gravity for the mesh. This is the location about 
         which moments are computed. Defaults to [0.0, 0.0, 0.0]. This is relative
         to the coordinate system of the mesh.
+
+    gradient_fit_type : str, optional
+        The type of basis functions to use for least-suares estimation of gradient.
+        May be 'linear' or 'quad'. Defaults to 'quad'.
     """
 
     def __init__(self, **kwargs):
@@ -86,6 +90,9 @@ class Mesh:
 
         # Calculate moment arms
         self.r_CG = self.cp-self.CG[np.newaxis,:]
+
+        # Set up least-squares matrices
+        self._set_up_lst_sq(kwargs.get('gradient_fit_type', 'quad'))
 
         # Display mesh information
         if self._verbose:
@@ -405,20 +412,89 @@ class Mesh:
                 if self._verbose:
                     prog.display()
 
-
+            # Store number of edges
             self.N_edges = len(self.kutta_edges)
 
-            # Store touching and abutting panels not across edge
-            for i, panel in enumerate(self.panels):
-                for j in panel.touching_panels:
-                    if not angle_greater[i,j]:
-                        panel.touching_panels_not_across_kutta_edge.append(j)
-                        if j in panel.abutting_panels:
-                            panel.abutting_panels_not_across_kutta_edge.append(j)
-
-
         else:
+
+            # If a Kutta angle is not given, then there are no edges
             self.N_edges = 0
+
+        if self._verbose:
+            print()
+            prog = OneLineProgress(2*self.N, msg="Locating abutting panels")
+
+        # Store touching and abutting panels not across edge
+        for i, panel in enumerate(self.panels):
+
+            # Loop through panels touching this one
+            for j in panel.touching_panels:
+
+                # Check panel angle
+                if theta_K is None or not angle_greater[i,j]:
+                    panel.touching_panels_not_across_kutta_edge.append(j)
+
+                    # Check if the panel is abutting
+                    if j in panel.abutting_panels:
+                        panel.abutting_panels_not_across_kutta_edge.append(j)
+
+            if self._verbose:
+                prog.display()
+
+        # Store second abutting panels not across edge
+        for i, panel in enumerate(self.panels):
+            for j in panel.abutting_panels_not_across_kutta_edge:
+
+                # This panel obviously counts
+                panel.second_abutting_panels_not_across_kutta_edge.append(j)
+
+                # Get second panels
+                for k in self.panels[j].abutting_panels_not_across_kutta_edge:
+                    if k not in panel.second_abutting_panels_not_across_kutta_edge and k!=i:
+                        panel.second_abutting_panels_not_across_kutta_edge.append(k)
+
+            if self._verbose:
+                prog.display()
+
+
+    def _set_up_lst_sq(self, fit_type):
+        # Determines the A matrix to least-squares estimation of the gradient.
+
+        if self._verbose:
+            print()
+            prog = OneLineProgress(self.N, msg="Calculating least-squares matrices")
+
+        # Initialize
+        self._gradient_type = fit_type
+        self.A_lsq = []
+
+        # Loop through panels
+        for i, panel in enumerate(self.panels):
+
+            # Determine which neighbors to use
+            if self._gradient_type=='quad':
+                neighbors = panel.second_abutting_panels_not_across_kutta_edge
+            else:
+                neighbors = panel.touching_panels_not_across_kutta_edge
+
+            # Get centroids of neighboring panels in local panel coordinates
+            dp = np.einsum('ij,kj->ki', panel.A_t, self.cp[neighbors]-panel.v_c[np.newaxis,:])
+
+            # Get basis functions
+            dx = dp[:,0][:,np.newaxis]
+            dy = dp[:,1][:,np.newaxis]
+            
+            # Assemble A matrix
+            if self._gradient_type=='quad':
+                A = np.concatenate((dx**2, dy**2, dx*dy, dx, dy), axis=1)
+            else:
+                A = dp
+
+            # Store
+            self.A_lsq.append(A)
+
+            if self._verbose:
+                prog.display()
 
 
     def plot(self, **kwargs):
@@ -536,6 +612,10 @@ class Mesh:
             for n in self.n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 
+        if self._verbose:
+            print()
+            print("Mesh successfully written to '{0}'.".format(filename))
+
 
     def get_vtk_data(self):
         """Returns a list of vertices and a list of indices referencing each panel to
@@ -546,7 +626,8 @@ class Mesh:
 
     def get_gradient(self, phi):
         """Returns a least-squares estimate of the gradient of phi at each panel
-        centroid. Phi should be given as the value of a scalar function at each
+        centroid assuming a quadratic model for phi in the plane of the panel.
+        Phi should be given as the value of a scalar function at each
         panel centroid, in the correct order.
 
         Parameters
@@ -566,17 +647,23 @@ class Mesh:
         # Loop through panels
         for i, panel in enumerate(self.panels):
 
-            # Get centroids of neighboring panels
-            #neighbors = panel.abutting_panels_not_across_kutta_edge
-            neighbors = panel.touching_panels_not_across_kutta_edge
-            neighbor_centroids = self.cp[neighbors]
-            neighbor_phis = phi[neighbors]
+            # Determine which neighbors to use
+            if self._gradient_type=='quad':
+                neighbors = panel.second_abutting_panels_not_across_kutta_edge
+            else:
+                neighbors = panel.touching_panels_not_across_kutta_edge
 
-            # Get A and b
-            A = neighbor_centroids-panel.v_c[np.newaxis,:]
-            b = neighbor_phis-phi[i]
+            # Get delta phi
+            b = phi[neighbors]-phi[i]
 
             # Solve
-            grad_phi[i] = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
+            A = self.A_lsq[i]
+            c = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
+
+            # Transform back to global coords
+            if self._gradient_type=='quad':
+                grad_phi[i] = np.einsum('ij,i', panel.A_t, np.array([c[3], c[4], 0.0]))
+            else:
+                grad_phi[i] = np.einsum('ij,i', panel.A_t, np.array([c[0], c[1], 0.0]))
 
         return grad_phi
