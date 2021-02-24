@@ -29,7 +29,8 @@ if __name__=="__main__":
         "airfoils" : {
             "NACA_0010" : {
                 "geometry" : {
-                    "NACA" : "0010"
+                    "NACA" : "0010",
+                    "NACA_closed_te" : True
                 }
             }
         },
@@ -65,40 +66,52 @@ if __name__=="__main__":
         "velocity" : [100.0, 0.0, 10]
     }
 
-    # Load scene
+    # Load scene for stl
     scene = MX.Scene(input_dict)
+    scene.add_aircraft("plane", airplane_dict, state=state)
+    FM = scene.solve_forces(non_dimensional=False, verbose=True)["plane"]["total"]
+    print(json.dumps(FM, indent=4))
+
+    # Export stl
+    stl_file = "dev/meshes/swept_wing_stl.stl"
+    scene.export_stl(filename=stl_file, section_resolution=51)
+
+    # Load scene for vtk
+    scene = MX.Scene(input_dict)
+    airplane_dict["wings"]["main_wing"]["grid"]["N"] = 55
     scene.add_aircraft("plane", airplane_dict, state=state)
     FM = scene.solve_forces(non_dimensional=False, verbose=True)["plane"]["total"]
     print(json.dumps(FM, indent=4))
 
     # Export vtk
     vtk_file = "dev/meshes/swept_wing_vtk.vtk"
-    scene.export_vtk(filename=vtk_file, section_resolution=51)
-
-    # Export stl
-    stl_file = "dev/meshes/swept_wing_stl.stl"
-    scene.export_stl(filename=stl_file, section_resolution=51)
-
-    # Run PyPan with vtk mesh
-    print("VTK Mesh")
-    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
-    solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
-    solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    F, M = solver.solve(lifting=True, verbose=True)
-    print("Force Vector: {0}".format(F))
-    print("Moment Vector: {0}".format(M))
-    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
-    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
-    solver.export_vtk(vtk_file.replace("meshes", "results"))
+    scene.export_vtk(filename=vtk_file, section_resolution=71)
 
     # Run PyPan with stl mesh
+    print()
     print("STL Mesh")
     mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
+    mesh.plot()
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
     F, M = solver.solve(lifting=True, verbose=True)
+    print()
     print("Force Vector: {0}".format(F))
     print("Moment Vector: {0}".format(M))
     print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
     print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
     solver.export_vtk(stl_file.replace("meshes", "results").replace(".stl", ".vtk"))
+
+    # Run PyPan with vtk mesh
+    print()
+    print("VTK Mesh")
+    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
+    solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
+    solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
+    F, M = solver.solve(lifting=True, verbose=True)
+    print()
+    print("Force Vector: {0}".format(F))
+    print("Moment Vector: {0}".format(M))
+    print("Max Pressure Coef: {0}".format(np.max(solver._C_P)))
+    print("Min Pressure Coef: {0}".format(np.min(solver._C_P)))
+    solver.export_vtk(vtk_file.replace("meshes", "results"))

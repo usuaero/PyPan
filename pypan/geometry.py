@@ -35,6 +35,7 @@ class Panel:
         # Initialize some storage
         self.touching_panels = [] # Panels which share at least one vertex with this panel
         self.abutting_panels = [] # Panels which share two vertices with this panel
+        self.touching_panels_not_across_kutta_edge = [] # Panels which share at least one vertex with this panel where those two vertices do not define a Kutta edge
         self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
 
 

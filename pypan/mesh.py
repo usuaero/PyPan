@@ -307,7 +307,7 @@ class Mesh:
 
         if self._verbose:
             print()
-            prog = OneLineProgress(self.N, msg="Locating touching and abutting panels")
+            prog = OneLineProgress(self.N, msg="Building panel adjacency mapping")
 
         # Loop through possible combinations
         for i, panel_i in enumerate(self.panels):
@@ -408,11 +408,14 @@ class Mesh:
 
             self.N_edges = len(self.kutta_edges)
 
-            # Store abutting panels not across edge
+            # Store touching and abutting panels not across edge
             for i, panel in enumerate(self.panels):
-                for j in panel.abutting_panels:
+                for j in panel.touching_panels:
                     if not angle_greater[i,j]:
-                        panel.abutting_panels_not_across_kutta_edge.append(j)
+                        panel.touching_panels_not_across_kutta_edge.append(j)
+                        if j in panel.abutting_panels:
+                            panel.abutting_panels_not_across_kutta_edge.append(j)
+
 
         else:
             self.N_edges = 0
@@ -427,7 +430,7 @@ class Mesh:
             Whether to display panels. Defaults to True.
 
         centroids : bool, optional
-            Whether to display centroids. Defaults to True.
+            Whether to display centroids. Defaults to False.
 
         kutta_edges : bool, optional
             Whether to display the edges at which the Kutta condition will be enforced.
@@ -447,13 +450,13 @@ class Mesh:
         
         ## Plot adjacency
         #ind = 0
-        #neighbors = self.panels[ind].touching_panels
+        #neighbors = self.panels[ind].touching_panels_not_across_kutta_edge
         #ax.plot(self.panels[ind].v_c[0], self.panels[ind].v_c[1], self.panels[ind].v_c[2], 'r.')
         #for i in neighbors:
         #    ax.plot(self.panels[i].v_c[0], self.panels[i].v_c[1], self.panels[i].v_c[2], 'g.')
         
         # Plot centroids
-        if kwargs.get("centroids", True):
+        if kwargs.get("centroids", False):
             for i, panel in enumerate(self.panels):
                 ax.plot(panel.v_c[0], panel.v_c[1], panel.v_c[2], 'r.', label='Centroid' if i==0 else '')
 
@@ -564,7 +567,8 @@ class Mesh:
         for i, panel in enumerate(self.panels):
 
             # Get centroids of neighboring panels
-            neighbors = panel.abutting_panels_not_across_kutta_edge
+            #neighbors = panel.abutting_panels_not_across_kutta_edge
+            neighbors = panel.touching_panels_not_across_kutta_edge
             neighbor_centroids = self.cp[neighbors]
             neighbor_phis = phi[neighbors]
 

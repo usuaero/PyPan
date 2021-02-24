@@ -9,6 +9,7 @@ PyPan
    installation
    mesh
    solvers
+   helpful_hints
    panair
    support
    developer_notes

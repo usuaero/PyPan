@@ -146,7 +146,7 @@ class VortexRingSolver(Solver):
         end_time = time.time()
         if self._verbose:
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
-            print("    Circulation sum: {0}".format(np.sum(self._mu)))
+            print("    Sum of doublet strengths: {0}".format(np.sum(self._mu)))
 
             if method == "svd":
                 try:
