@@ -32,22 +32,19 @@ class Mesh:
     mesh_file_type : str
         The type of mesh file being loaded. Can be "STL" or "VTK".
 
+        ASCII or binary STL files may be used.
+
         Currently PyPan can import a VTK *unstructured mesh*. The panels should
-        be given as POLYGONS. Kutta edges (if given) are listed simply as LINES.
-        PyPan can accept no other format currently. Within a VTK file, the normal
-        vector, area, and centroid may also be given under CELL_DATA. In all cases
-        LOOKUP_TABLE should be default (PyPan is not currently able to parse non-
-        default lookup tables).
+        be given as POLYGONS. PyPan can accept no other format currently. Within
+        a VTK file, the normal vector, area, and centroid may also be given under
+        CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not
+        currently able to parse non-default lookup tables).
 
     kutta_angle : float, optional
         The angle threshold for determining where the Kutta condition should
         be enforced. Defaults to None, in which case Kutta edges will not be 
-        automatically determined.
-
-        This is not needed for "VTK" type meshes where the Kutta edges are already
-        specified. However, if given, this will force reevaluation of the Kutta
-        edges (expensive!) whether or not were determined previously. If not given,
-        the Kutta edges listed in the mesh file will be used.
+        determined. This is not needed in some cases. See the documentation for
+        your specific solver to determine whether Kutta edges are required.
 
     CG : list, optional
         Location of the center of gravity for the mesh. This is the location about 
@@ -56,7 +53,7 @@ class Mesh:
 
     gradient_fit_type : str, optional
         The type of basis functions to use for least-suares estimation of gradient.
-        May be 'linear' or 'quad'. Defaults to 'quad'.
+        May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
     """
 
     def __init__(self, **kwargs):
@@ -375,9 +372,9 @@ class Mesh:
             for i in i_panels:
                 panel_i = self.panels[i]
 
-                # Determine if we're adjacent
+                # Check abutting panels for Kutta angle
                 j_panels = np.argwhere(angle_greater[i]).flatten()
-                for j in panel_i.touching_panels:
+                for j in panel_i.abutting_panels:
 
                     # Don't repeat
                     if j <= i:
@@ -422,15 +419,15 @@ class Mesh:
 
         if self._verbose:
             print()
-            prog = OneLineProgress(2*self.N, msg="Locating abutting panels")
+            prog = OneLineProgress(2*self.N, msg="Locating panels for gradient calculation")
 
-        # Store touching and abutting panels not across edge
+        # Store touching and abutting panels not across Kutta edge
         for i, panel in enumerate(self.panels):
 
             # Loop through panels touching this one
             for j in panel.touching_panels:
 
-                # Check panel angle
+                # Check panel angle or if the Kutta angle has not been given
                 if theta_K is None or not angle_greater[i,j]:
                     panel.touching_panels_not_across_kutta_edge.append(j)
 
@@ -441,7 +438,7 @@ class Mesh:
             if self._verbose:
                 prog.display()
 
-        # Store second abutting panels not across edge
+        # Store second abutting panels not across Kutta edge
         for i, panel in enumerate(self.panels):
             for j in panel.abutting_panels_not_across_kutta_edge:
 

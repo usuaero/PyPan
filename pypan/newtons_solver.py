@@ -6,12 +6,18 @@ from .solvers import Solver
 from .pp_math import norm, vec_inner
 
 class NewtonsSolver(Solver):
-    """Solves the aerodynamics using Newton's or modified Newton's method.
+    """Estimates the aerodynamics using Newton's or modified Newton's method.
 
     Parameters
     ----------
     type : str, optional
         May be "original" or "modified". Defaults to "original".
+
+    mesh : Mesh
+        A PyPan mesh object about which to calculate the flow. Kutta edges are
+        not required.
+
+    verbose : bool, optional
     """
 
     def __init__(self, **kwargs):
@@ -56,7 +62,7 @@ class NewtonsSolver(Solver):
 
 
     def solve(self, **kwargs):
-        """Solves the panel equations to determine the flow field around the mesh.
+        """Solves for the pressure coefficient based on the linclination of each panel.
 
         Parameters
         ----------

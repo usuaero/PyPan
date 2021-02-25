@@ -1,4 +1,3 @@
-"""Class for the first-order vortex ring (constant doublet) solver."""
 import time
 
 import numpy as np
@@ -9,12 +8,13 @@ from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
 from pypan.helpers import OneLineProgress
 
 class VortexRingSolver(Solver):
-    """Vortex ring solver.
+    """Vortex ring (doublet sheet) solver.
 
     Parameters
     ----------
     mesh : Mesh
-        A mesh object.
+        A PyPan mesh object about which to calculate the flow. Kutta edges are
+        only required in the case of lifting flow.
 
     verbose : bool, optional
     """

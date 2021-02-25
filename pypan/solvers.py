@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from abc import abstractmethod
-from .pp_math import vec_inner, vec_norm, norm
+from pypan.pp_math import vec_inner, vec_norm, norm
 
 class Solver:
     """Base class for solvers."""

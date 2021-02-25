@@ -41,7 +41,6 @@ class Panel:
         self.touching_panels_not_across_kutta_edge = [] # Panels which share at least one vertex with this panel where those two vertices do not define a Kutta edge
         self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
         self.second_abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel or its abutting panels where those two vertices do not define a Kutta edge
-        self.gradient_panels = self.second_abutting_panels_not_across_kutta_edge
 
 
     def _calc_normal(self):
