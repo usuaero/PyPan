@@ -90,7 +90,7 @@ if __name__=="__main__":
     # Run PyPan with vtk mesh
     print()
     print("VTK Mesh")
-    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True, gradient_fit_type='quad')
+    mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
     F, M = solver.solve(lifting=True, verbose=True)
@@ -104,7 +104,7 @@ if __name__=="__main__":
     # Run PyPan with stl mesh
     print()
     print("STL Mesh")
-    mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True, gradient_fit_type='linear')
+    mesh = pp.Mesh(mesh_file=stl_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     #mesh.plot()
     solver = pp.VortexRingSolver(mesh=mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
