@@ -122,9 +122,6 @@ class VortexRingSolver(Solver):
 
             if self._verbose: print("\nSolving lifting case...", end='', flush=True)
 
-            # Specify b vector
-            b = self._b
-
         # Nonlifting
         else:
             if self._verbose: print("\nSolving nonlifting case...", end='', flush=True)
@@ -132,17 +129,12 @@ class VortexRingSolver(Solver):
             # Specify A matrix
             A = self._A_panels[:,1:]
 
-            # Specify b vector
-            b = self._b
-
         # Solve system
         self._mu = np.zeros(self._N_panels)
 
         # Direct method
         if method=='direct':
-            ATA = np.matmul(A.T, A)
-            ATb = np.matmul(A.T, b[:,np.newaxis])
-            self._mu[1:] = np.linalg.solve(ATA, ATb).flatten()
+            self._mu[1:] = np.linalg.solve(np.matmul(A.T, A), np.matmul(A.T, self._b[:,np.newaxis])).flatten()
 
         # Singular value decomposition
         elif method == "svd":
