@@ -68,7 +68,11 @@ class VortexRingSolver(Solver):
 
         method : str, optional
             Method for computing the least-squares solution to the system of equations.
-            May be 'svd', 'qr', or 'direct'. Defaults to 'svd'.
+            May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard
+            linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense
+            using the singular value decomposition. 'direct' is much faster but may be susceptible
+            to numerical error due to a poorly conditioned system. 'svd' is more reliable at
+            producing a stable solution. Defaults to 'direct'.
 
         verbose : bool, optional
 
@@ -84,7 +88,7 @@ class VortexRingSolver(Solver):
 
         # Get kwargs
         lifting = kwargs.get("lifting", False)
-        method = kwargs.get("method", "svd")
+        method = kwargs.get("method", "direct")
         self._verbose = kwargs.get("verbose", False)
 
         # Lifting
@@ -99,15 +103,22 @@ class VortexRingSolver(Solver):
             # Create horseshoe vortex influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel
             self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
             for edge in self._mesh.kutta_edges:
+
+                # Get indices of panels defining the edge
                 p_ind = edge.panel_indices
+
+                # Get infulence
                 V = edge.get_vortex_influence(self._mesh.cp, self._u_inf[np.newaxis,:])
+
+                # Store
                 self._vortex_influence_matrix[:,p_ind[0]] = -V
                 self._vortex_influence_matrix[:,p_ind[1]] = V
+
                 if self._verbose:
                     prog.display()
 
             # Specify A matrix
-            A = self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n)
+            A = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))[:,1:]
 
             if self._verbose: print("\nSolving lifting case...", end='', flush=True)
 
@@ -119,28 +130,23 @@ class VortexRingSolver(Solver):
             if self._verbose: print("\nSolving nonlifting case...", end='', flush=True)
             
             # Specify A matrix
-            A = np.zeros((self._N_panels+1, self._N_panels))
-            A[:-1] = self._A_panels
-            A[-1,:] = 1.0
+            A = self._A_panels[:,1:]
 
             # Specify b vector
-            b = np.zeros(self._N_panels+1)
-            b[:-1] = self._b
+            b = self._b
 
         # Solve system
-        if method == "svd": # Singular value decomposition
-            self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+        self._mu = np.zeros(self._N_panels)
 
-        elif method == "qr": # QR factorization
-            q, r = np.linalg.qr(A)
-            c = np.einsum('ij,i', q, b)
-            self._mu = np.linalg.solve(r[:self._N_panels,:self._N_panels], c)
+        # Direct method
+        if method=='direct':
+            ATA = np.matmul(A.T, A)
+            ATb = np.matmul(A.T, b[:,np.newaxis])
+            self._mu[1:] = np.linalg.solve(ATA, ATb).flatten()
 
-        elif method == "direct": # Not sure how this works...
-            if lifting:
-                self._mu = np.linalg.solve(A, b)
-            else:
-                self._mu = np.linalg.solve(self._A_panels, self._b)
+        # Singular value decomposition
+        elif method == "svd":
+            self._mu[1:], res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
 
         # Print computation results
         end_time = time.time()
@@ -148,7 +154,7 @@ class VortexRingSolver(Solver):
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
             print("    Sum of doublet strengths: {0}".format(np.sum(self._mu)))
 
-            if method == "svd":
+            if method=="svd":
                 try:
                     print("    Maximum residual: {0}".format(np.max(res)))
                 except:

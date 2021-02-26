@@ -24,7 +24,7 @@ if __name__=="__main__":
     if 'stl' in mesh_file or 'STL' in mesh_file:
         my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     else:
-        my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", verbose=True)#, kutta_angle=90.0)
+        my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
 
     # Export vtk if we need to
     if not os.path.isfile(mesh_file.replace(".stl", ".vtk")):
@@ -39,14 +39,24 @@ if __name__=="__main__":
     # Set condition
     my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769)
 
-    # Solve
-    F, M = my_solver.solve(verbose=True, lifting=False, method="svd")
+    # Solve using direct method
+    F, M = my_solver.solve(verbose=True, lifting=False)
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))
     print("Min C_P: ", np.min(my_solver._C_P))
 
     # Export results as VTK
-    my_solver.export_vtk(mesh_file.replace("meshes", "results").replace(".stl", ".vtk"))
+    my_solver.export_vtk("5000_sphere_direct.vtk")
+
+    # Solve using svd
+    F, M = my_solver.solve(verbose=True, lifting=False, method='svd')
+    print("F: ", F)
+    print("M: ", M)
+    print("Max C_P: ", np.max(my_solver._C_P))
+    print("Min C_P: ", np.min(my_solver._C_P))
+
+    # Export results as VTK
+    my_solver.export_vtk("5000_sphere_svd.vtk")
     end_time = time.time()
     print("\nTotal run time: {0} s".format(end_time-start_time))
