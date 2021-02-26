@@ -89,18 +89,11 @@ class VortexRingSolver(Solver):
         # Set up A matrix
         if self._verbose: print("\nSolving case...", end='', flush=True)
 
-        # No wake
-        if self._N_edges==0:
-            A = self._A_panels[:,1:]
+        # Get wake influence matrix
+        self._vortex_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=np.zeros(3))
 
-        # Wake
-        else:
-
-            # Get wake influence matrix
-            self._vortex_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=np.zeros(3))
-
-            # Specify A matrix
-            A = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))[:,1:]
+        # Specify A matrix
+        A = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))[:,1:]
 
         # Solve system
         self._mu = np.zeros(self._N_panels)
@@ -139,9 +132,8 @@ class VortexRingSolver(Solver):
         self._grad_mu_in_plane = np.einsum('ijk,ik->ij', self._P_surf, self._grad_mu)
         self._v -= 0.5*self._grad_mu_in_plane
 
-        # Determine velocities induced by horseshoe vortices
-        if self._N_edges != 0:
-            self._v += np.sum(self._vortex_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
+        # Determine wake induced velocities
+        self._v += np.sum(self._vortex_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)

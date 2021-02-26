@@ -142,12 +142,16 @@ class FixedFilament:
     ----------
     origin : ndarray
         Origin point of the filament.
+
+    panels : list
+        Indices of the two or four panels which shed this filament.
     """
 
-    def __init__(self, origin):
+    def __init__(self, origin, panels):
 
-        # Store origin point
+        # Store info
         self._p0 = origin
+        self._panels = panels
 
 
     def set_dir(self, dir):
