@@ -56,6 +56,9 @@ class VortexRingSolver(Solver):
         # Create part of b vector dependent upon V_inf
         self._b = -vec_inner(self._v_inf, self._mesh.n)
 
+        # Get solid body rotation
+        self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
+
 
     def solve(self, **kwargs):
         """Solves the panel equations to determine the flow field around the mesh.
@@ -90,11 +93,11 @@ class VortexRingSolver(Solver):
         if self._verbose: print("\nSolving case...", end='', flush=True)
 
         # Get wake influence matrix
-        self._vortex_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=np.zeros(3))
+        self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega)
 
         # Specify A matrix
         A = np.zeros((self._N_panels+1,self._N_panels))
-        A[:-1] = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))
+        A[:-1] = (self._A_panels+np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n))
         A[-1] = 1.0
 
         # Specify b vector
@@ -139,7 +142,7 @@ class VortexRingSolver(Solver):
         self._v -= 0.5*self._grad_mu_in_plane
 
         # Determine wake induced velocities
-        self._v += np.sum(self._vortex_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
+        self._v += np.sum(self._wake_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)

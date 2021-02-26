@@ -7,6 +7,7 @@ PyPan
 
    introduction
    installation
+   basic_usage
    mesh
    solvers
    wake_models

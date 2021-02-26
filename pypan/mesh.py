@@ -566,7 +566,7 @@ class Mesh:
                 ax.plot(panel.v_c[0], panel.v_c[1], panel.v_c[2], 'r.', label='Centroid' if i==0 else '')
 
         # Plot Kutta edges
-        if kwargs.get("kutta_edges", True) and hasattr(self, "kutta_edges"):
+        if kwargs.get("kutta_edges", True):
             for i, edge in enumerate(self._kutta_edges):
                 ax.plot(edge.vertices[:,0], edge.vertices[:,1], edge.vertices[:,2], 'b', label='Kutta Edge' if i==0 else '')
 
