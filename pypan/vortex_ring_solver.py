@@ -93,18 +93,24 @@ class VortexRingSolver(Solver):
         self._vortex_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=np.zeros(3))
 
         # Specify A matrix
-        A = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))[:,1:]
+        A = np.zeros((self._N_panels+1,self._N_panels))
+        A[:-1] = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))
+        A[-1] = 1.0
+
+        # Specify b vector
+        b = np.zeros(self._N_panels+1)
+        b[:-1] = self._b
 
         # Solve system
         self._mu = np.zeros(self._N_panels)
 
         # Direct method
         if method=='direct':
-            self._mu[1:] = np.linalg.solve(np.matmul(A.T, A), np.matmul(A.T, self._b[:,np.newaxis])).flatten()
+            self._mu = np.linalg.solve(np.matmul(A.T, A), np.matmul(A.T, b[:,np.newaxis])).flatten()
 
         # Singular value decomposition
         elif method == "svd":
-            self._mu[1:], res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+            self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
 
         # Print computation results
         end_time = time.time()
