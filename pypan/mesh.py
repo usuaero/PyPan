@@ -13,7 +13,8 @@ from mpl_toolkits.mplot3d import Axes3D
 
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
-from pypan.geometry import Tri, Quad, KuttaEdge
+from pypan.panels import Tri, Quad
+from pypan.wake import Wake, FixedWake, KuttaEdge
 
 
 class Mesh:
@@ -90,6 +91,9 @@ class Mesh:
 
         # Set up least-squares matrices
         self._set_up_lst_sq(kwargs.get('gradient_fit_type', 'quad'))
+
+        # Set up dummy wake
+        self.wake = Wake(kutta_edges=self._kutta_edges)
 
         # Display mesh information
         if self._verbose:
@@ -366,7 +370,7 @@ class Mesh:
             i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
 
             # Initialize edge storage
-            self.kutta_edges = []
+            self._kutta_edges = []
 
             # Loop through possible combinations
             for i in i_panels:
@@ -401,16 +405,16 @@ class Mesh:
                                     # Initialize edge object; vertices are stored in the same order as the first panel
                                     else:
                                         if ii-ii0 == 1: # Order is important for definition of circulation
-                                            self.kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                            self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
                                         else:
-                                            self.kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
+                                            self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
                                         break
 
                 if self._verbose:
                     prog.display()
 
             # Store number of edges
-            self.N_edges = len(self.kutta_edges)
+            self.N_edges = len(self._kutta_edges)
 
         else:
 
@@ -494,6 +498,34 @@ class Mesh:
                 prog.display()
 
 
+    def set_wake(self, **kwargs):
+        """Sets the wake for this mesh.
+
+        Parameters
+        ----------
+        iterative : bool
+            Whether an iterative or non-iterative wake model is to be used. Defaults to False.
+            CURRENTLY ONLY NON-ITERATIVE WAKES ARE AVAILABLE.
+
+        type : str
+            If non-iterative, may be "fixed", "freestream", "freestream_constrained",
+            "freestream_and_rotation", or "freestream_and_rotation_constrained".
+
+        dir : list or ndarray, optional
+            Direction of the vortex filaments. Required for type "fixed".
+
+        normal_dir : list or ndarray, optional
+            Normal direction of the plane in which the direction of the vortex filaments should
+            be constrained. Required for type "freestream_constrainted" or 
+            "freestream_and_rotation_constrained".
+        """
+
+        # Initialize wake
+        self.iterative_wake = kwargs.get("iterative", False)
+        if not self.iterative_wake:
+            self.wake = FixedWake(kutta_edges=self._kutta_edges, **kwargs)
+
+
     def plot(self, **kwargs):
         """Plots the mesh in 3D.
 
@@ -535,7 +567,7 @@ class Mesh:
 
         # Plot Kutta edges
         if kwargs.get("kutta_edges", True) and hasattr(self, "kutta_edges"):
-            for i, edge in enumerate(self.kutta_edges):
+            for i, edge in enumerate(self._kutta_edges):
                 ax.plot(edge.vertices[:,0], edge.vertices[:,1], edge.vertices[:,2], 'b', label='Kutta Edge' if i==0 else '')
 
         ax.set_xlabel('x')

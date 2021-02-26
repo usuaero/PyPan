@@ -13,8 +13,7 @@ class VortexRingSolver(Solver):
     Parameters
     ----------
     mesh : Mesh
-        A PyPan mesh object about which to calculate the flow. Kutta edges are
-        only required in the case of lifting flow.
+        A PyPan mesh object about which to calculate the flow.
 
     verbose : bool, optional
     """
@@ -63,9 +62,6 @@ class VortexRingSolver(Solver):
 
         Parameters
         ----------
-        lifting : bool, optional
-            Whether the Kutta condition is to be enforced. Defaults to False.
-
         method : str, optional
             Method for computing the least-squares solution to the system of equations.
             May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard
@@ -87,47 +83,24 @@ class VortexRingSolver(Solver):
         start_time = time.time()
 
         # Get kwargs
-        lifting = kwargs.get("lifting", False)
         method = kwargs.get("method", "direct")
         self._verbose = kwargs.get("verbose", False)
 
-        # Lifting
-        if lifting:
-            if self._N_edges==0:
-                raise RuntimeError("Lifting case cannot be solved for a geometry with no Kutta edges.")
+        # Set up A matrix
+        if self._verbose: print("\nSolving case...", end='', flush=True)
 
-            if self._verbose:
-                print()
-                prog = OneLineProgress(self._mesh.N_edges, "Determining wake influence")
+        # No wake
+        if self._N_edges==0:
+            A = self._A_panels[:,1:]
 
-            # Create horseshoe vortex influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel
-            self._vortex_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
-            for edge in self._mesh.kutta_edges:
+        # Wake
+        else:
 
-                # Get indices of panels defining the edge
-                p_ind = edge.panel_indices
-
-                # Get infulence
-                V = edge.get_vortex_influence(self._mesh.cp, self._u_inf[np.newaxis,:])
-
-                # Store
-                self._vortex_influence_matrix[:,p_ind[0]] = -V
-                self._vortex_influence_matrix[:,p_ind[1]] = V
-
-                if self._verbose:
-                    prog.display()
+            # Get wake influence matrix
+            self._vortex_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=np.zeros(3))
 
             # Specify A matrix
             A = (self._A_panels+np.einsum('ijk,ik->ij', self._vortex_influence_matrix, self._mesh.n))[:,1:]
-
-            if self._verbose: print("\nSolving lifting case...", end='', flush=True)
-
-        # Nonlifting
-        else:
-            if self._verbose: print("\nSolving nonlifting case...", end='', flush=True)
-            
-            # Specify A matrix
-            A = self._A_panels[:,1:]
 
         # Solve system
         self._mu = np.zeros(self._N_panels)
@@ -167,7 +140,7 @@ class VortexRingSolver(Solver):
         self._v -= 0.5*self._grad_mu_in_plane
 
         # Determine velocities induced by horseshoe vortices
-        if lifting:
+        if self._N_edges != 0:
             self._v += np.sum(self._vortex_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
 
         # Determine coefficients of pressure

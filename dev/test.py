@@ -13,8 +13,8 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
-    #mesh_file = "dev/meshes/1250_sphere.vtk"
-    mesh_file = "dev/meshes/F16_Original_withFins.stl"
+    mesh_file = "dev/meshes/1250_sphere.vtk"
+    #mesh_file = "dev/meshes/F16_Original_withFins.stl"
     #mesh_file = "dev/meshes/cool_body_7000.stl"
 
     # Start timer
@@ -31,16 +31,17 @@ if __name__=="__main__":
         my_mesh.export_vtk(mesh_file.replace(".stl", ".vtk"))
 
     # Plot mesh
-    my_mesh.plot(centroids=False)
+    #my_mesh.plot(centroids=False)
+    my_mesh.set_wake(iterative=False, type="freestream")
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[0.0, 10.0, -100.0], rho=0.0023769)
+    my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769)
 
     # Solve
-    F, M = my_solver.solve(verbose=True, lifting=True)
+    F, M = my_solver.solve(verbose=True)
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))

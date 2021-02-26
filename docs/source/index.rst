@@ -9,6 +9,7 @@ PyPan
    installation
    mesh
    solvers
+   wake_models
    helpful_hints
    panair
    support
