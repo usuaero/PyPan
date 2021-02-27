@@ -1,7 +1,9 @@
+import copy
+
 import numpy as np
 
 from abc import abstractmethod
-from pypan.pp_math import vec_cross, vec_inner, vec_norm
+from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -17,6 +19,41 @@ class Wake:
         # Store Kutta edges
         self._kutta_edges = kwargs["kutta_edges"]
         self._N_edges = len(self._kutta_edges)
+
+        # Create unique list of vertices
+        self._arrange_kutta_vertices()
+
+
+    def _arrange_kutta_vertices(self):
+        # Determines a unique list of the vertices defining all Kutta edges for the wake and the panels associated with each vertex
+
+        # Get array of all vertices
+        vertices = np.zeros((2*self._N_edges,3))
+        for i, edge in enumerate(self._kutta_edges):
+
+            # Store vertices
+            vertices[2*i] = edge.vertices[0]
+            vertices[2*i+1] = edge.vertices[1]
+
+        # Determine unique vertices
+        unique_vertices, inverse_indices = np.unique(vertices, return_inverse=True, axis=0)
+
+        # Initialize filaments
+        self._filaments = []
+        for i, vertex in enumerate(unique_vertices):
+
+            # Determine associated panels
+            inbound_panels = []
+            outbound_panels = []
+            for j, ind in enumerate(inverse_indices):
+                if ind==i:
+                    if j%2==0: # Inbound node for these panels
+                        inbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+                    else: # Outbound node
+                        outbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+
+            # Store filament
+            self._filaments.append(VortexFilament(vertex, inbound_panels, outbound_panels))
 
 
     def get_influence_matrix(self, **kwargs):
@@ -46,9 +83,8 @@ class Wake:
         return np.zeros((N, N, 3))
 
 
-class FixedWake(Wake):
-    """Defines a fixed wake consisting of straight, semi-infinite vortex
-    filaments.
+class NonIterativeWake(Wake):
+    """Defines a non-iterative wake consisting of straight, semi-infinite vortex filaments.
 
     Parameters
     ----------
@@ -57,7 +93,7 @@ class FixedWake(Wake):
 
     type : str
         May be "fixed", "freestream", "freestream_constrained", "freestream_and_rotation",
-        or "freestream_and_rotation_constrained".
+        or "freestream_and_rotation_constrained". Defaults to "freestream".
 
     dir : list or ndarray, optional
         Direction of the vortex filaments. Required for type "fixed".
@@ -72,9 +108,7 @@ class FixedWake(Wake):
         super().__init__(**kwargs)
 
         # Store type
-        self._type = kwargs.get("type")
-        if self._type is None:
-            raise IOError("Wake type must be specified.")
+        self._type = kwargs.get("type", "freestream")
 
         # Get direction for fixed wake
         if self._type=="fixed":
@@ -89,6 +123,27 @@ class FixedWake(Wake):
                 self._n = np.array(kwargs.get("normal_dir"))
             except:
                 raise IOError("'normal_dir' is required for wake type {0}.".format(self._type))
+            
+            # Create projection matrix
+            self._P = np.eye(3)-np.matmul(self._n[:,np.newaxis], self._n[np.newaxis,:])
+
+
+    def update_filament_dirs(self, v_inf, omega):
+        """Updates the direction of the vortex filaments based on the velocity params.
+
+        Parameters
+        ----------
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
+        """
+
+        # Freestream direction
+        if self._type=="freestream":
+            for filament in self._filaments:
+                filament.set_dir(v_inf/norm(v_inf))
 
 
     def get_influence_matrix(self, **kwargs):
@@ -118,8 +173,9 @@ class FixedWake(Wake):
 
         # Initialize storage
         N = len(points)
-
         vortex_influence_matrix = np.zeros((N, N, 3))
+
+        # Get influence of edges
         for edge in self._kutta_edges:
 
             # Get indices of panels defining the edge
@@ -131,11 +187,29 @@ class FixedWake(Wake):
             # Store
             vortex_influence_matrix[:,p_ind[0]] = -V
             vortex_influence_matrix[:,p_ind[1]] = V
+
+        # Get influence of filaments
+        for filament in self._filaments:
+
+            # Get influence
+            V = filament.get_influence(points)
+
+            # Add for outbound panels
+            outbound_panels = filament.outbound_panels
+            if len(outbound_panels)>0:
+                vortex_influence_matrix[:,filament.outbound_panels[0]] -= V
+                vortex_influence_matrix[:,filament.outbound_panels[1]] += V
+
+            # Add for inbound panels
+            inbound_panels = filament.inbound_panels
+            if len(inbound_panels)>0:
+                vortex_influence_matrix[:,filament.inbound_panels[0]] += V
+                vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
         
         return vortex_influence_matrix
 
 
-class FixedFilament:
+class VortexFilament:
     """Defines a straight, semi-infinite vortex filament.
 
     Parameters
@@ -143,28 +217,32 @@ class FixedFilament:
     origin : ndarray
         Origin point of the filament.
 
-    panels : list
-        Indices of the two or four panels which shed this filament.
+    inbound_panels : list
+        Indices of the two panels for which this is an inbound filament.
+
+    outbound_panels : list
+        Indices of the two panels for which this is an outbound filament.
     """
 
-    def __init__(self, origin, panels):
+    def __init__(self, origin, inbound_panels, outbound_panels):
 
         # Store info
         self._p0 = origin
-        self._panels = panels
+        self.inbound_panels = inbound_panels
+        self.outbound_panels = outbound_panels
 
 
-    def set_dir(self, dir):
+    def set_dir(self, direction):
         """Sets the direction of the filament.
 
         Parameters
         ----------
-        dir : ndarray
+        direction : ndarray
             Direction of the vortex filament.
         """
 
         # Store direction
-        self._dir = dir
+        self._dir = direction
 
 
     def get_influence(self, points):
@@ -175,12 +253,17 @@ class FixedFilament:
         points : ndarray
             Points at which to calculate the influence.
         """
-        pass
+
+        # Determine displacement vector magnitudes
+        r = points-self._p0[np.newaxis,:]
+        r_mag = vec_norm(r)
+
+        # Calculate influence
+        return 0.25/np.pi*vec_cross(self._dir, r)/(r_mag*(r_mag-vec_inner(self._dir, r)))[:,np.newaxis]
 
 
 class KuttaEdge:
-    """A class for defining an edge segment at which the Kutta condition is applied. These are used
-    for the horseshoe vortex type wake.
+    """A class for defining an edge segment at which the Kutta condition is applied.
 
     Parameters
     ----------
@@ -250,4 +333,5 @@ class KuttaEdge:
         v_0_inf = vec_cross(u_inf, r0)/(r0_mag*(r0_mag-vec_inner(u_inf, r0)[:,np.newaxis]))
         v_1_inf = vec_cross(u_inf, r1)/(r1_mag*(r1_mag-vec_inner(u_inf, r1)[:,np.newaxis]))
 
-        return 0.25/np.pi*(-v_0_inf+v_01+v_1_inf)
+        #return 0.25/np.pi*(-v_0_inf+v_01+v_1_inf)
+        return 0.25/np.pi*v_01

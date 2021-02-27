@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    mesh_file = "dev/meshes/swept_wing_vtk.vtk"
+    #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
+    mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"

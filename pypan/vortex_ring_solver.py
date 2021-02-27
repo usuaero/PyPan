@@ -44,6 +44,9 @@ class VortexRingSolver(Solver):
 
         rho : float
             Freestream density.
+        
+        angular_rate : list
+            Body-fixed angular rate vector (given in rad/s).
         """
 
         # Get freestream
@@ -58,6 +61,9 @@ class VortexRingSolver(Solver):
 
         # Get solid body rotation
         self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
+
+        # Update wake
+        self._mesh.wake.update_filament_dirs(self._v_inf, self._omega)
 
 
     def solve(self, **kwargs):

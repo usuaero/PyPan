@@ -27,8 +27,6 @@ if __name__=="__main__":
     F, M = my_solver.solve(verbose=True)
     print("F: ", F)
     print("M: ", M)
-    print("Max C_P: ", np.max(my_solver._C_P))
-    print("Min C_P: ", np.min(my_solver._C_P))
 
     # Export results as VTK
     my_solver.export_vtk(mesh_file.replace("meshes", "results").replace("stl", "vtk"))

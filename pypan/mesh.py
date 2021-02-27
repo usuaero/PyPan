@@ -14,7 +14,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
-from pypan.wake import Wake, FixedWake, KuttaEdge
+from pypan.wake import Wake, NonIterativeWake, KuttaEdge
 
 
 class Mesh:
@@ -53,7 +53,7 @@ class Mesh:
         to the coordinate system of the mesh.
 
     gradient_fit_type : str, optional
-        The type of basis functions to use for least-suares estimation of gradient.
+        The type of basis functions to use for least-suares estimation of gradients.
         May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
     """
 
@@ -499,7 +499,7 @@ class Mesh:
 
 
     def set_wake(self, **kwargs):
-        """Sets the wake for this mesh.
+        """Sets the wake for this mesh. This should be called before executing a solver on this mesh.
 
         Parameters
         ----------
@@ -507,9 +507,10 @@ class Mesh:
             Whether an iterative or non-iterative wake model is to be used. Defaults to False.
             CURRENTLY ONLY NON-ITERATIVE WAKES ARE AVAILABLE.
 
-        type : str
+        type : str, optional
             If non-iterative, may be "fixed", "freestream", "freestream_constrained",
-            "freestream_and_rotation", or "freestream_and_rotation_constrained".
+            "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults
+            to "freestream".
 
         dir : list or ndarray, optional
             Direction of the vortex filaments. Required for type "fixed".
@@ -523,7 +524,7 @@ class Mesh:
         # Initialize wake
         self.iterative_wake = kwargs.get("iterative", False)
         if not self.iterative_wake:
-            self.wake = FixedWake(kutta_edges=self._kutta_edges, **kwargs)
+            self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
 
 
     def plot(self, **kwargs):
