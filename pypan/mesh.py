@@ -517,7 +517,7 @@ class Mesh:
 
         normal_dir : list or ndarray, optional
             Normal direction of the plane in which the direction of the vortex filaments should
-            be constrained. Required for type "freestream_constrainted" or 
+            be constrained. Required for type "freestream_constrained" or 
             "freestream_and_rotation_constrained".
         """
 
@@ -525,6 +525,8 @@ class Mesh:
         self.iterative_wake = kwargs.get("iterative", False)
         if not self.iterative_wake:
             self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
+        else:
+            raise IOError("Iterative wake models are not currently implemented in PyPan.")
 
 
     def plot(self, **kwargs):

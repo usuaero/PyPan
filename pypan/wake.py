@@ -3,7 +3,7 @@ import copy
 import numpy as np
 
 from abc import abstractmethod
-from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
+from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, cross
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -142,8 +142,31 @@ class NonIterativeWake(Wake):
 
         # Freestream direction
         if self._type=="freestream":
+            u = v_inf/norm(v_inf)
             for filament in self._filaments:
-                filament.set_dir(v_inf/norm(v_inf))
+                filament.set_dir(u)
+
+        # Freestream constrained
+        elif self._type=="freestream_constrained":
+            u = np.einsum('ij,j', self._P, v_inf)
+            u /= norm(u)
+            for filament in self._filaments:
+                filament.set_dir(u)
+
+        # Freestream with rotation
+        elif self._type=="freestream_and_rotation":
+            for filament in self._filaments:
+                u = v_inf-cross(omega, filament.p0)
+                u /= norm(u)
+                filament.set_dir(u)
+
+        # Freestream with rotation constrained
+        elif self._type=="freestream_and_rotation_constrained":
+            for filament in self._filaments:
+                u = v_inf-cross(omega, filament.p0)
+                u = np.einsum('ij,j', self._P, u)
+                u /= norm(u)
+                filament.set_dir(u)
 
 
     def get_influence_matrix(self, **kwargs):
@@ -227,7 +250,7 @@ class VortexFilament:
     def __init__(self, origin, inbound_panels, outbound_panels):
 
         # Store info
-        self._p0 = origin
+        self.p0 = origin
         self.inbound_panels = inbound_panels
         self.outbound_panels = outbound_panels
 
@@ -255,7 +278,7 @@ class VortexFilament:
         """
 
         # Determine displacement vector magnitudes
-        r = points-self._p0[np.newaxis,:]
+        r = points-self.p0[np.newaxis,:]
         r_mag = vec_norm(r)
 
         # Calculate influence

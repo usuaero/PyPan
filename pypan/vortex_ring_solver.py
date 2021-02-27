@@ -89,29 +89,29 @@ class VortexRingSolver(Solver):
         M : ndarray
             Moment vector in mesh coordinates.
         """
-        start_time = time.time()
+
+        # Begin timer
+        self._verbose = kwargs.get("verbose", False)
+        if self._verbose:
+            print()
+            prog = OneLineProgress(3, msg="Solving case")
 
         # Get kwargs
         method = kwargs.get("method", "direct")
-        self._verbose = kwargs.get("verbose", False)
-
-        # Set up A matrix
-        if self._verbose: print("\nSolving case...", end='', flush=True)
 
         # Get wake influence matrix
         self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega)
+        if self._verbose: prog.display()
 
         # Specify A matrix
         A = np.zeros((self._N_panels+1,self._N_panels))
         A[:-1] = (self._A_panels+np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n))
         A[-1] = 1.0
+        if self._verbose: prog.display()
 
         # Specify b vector
         b = np.zeros(self._N_panels+1)
         b[:-1] = self._b
-
-        # Solve system
-        self._mu = np.zeros(self._N_panels)
 
         # Direct method
         if method=='direct':
@@ -122,9 +122,10 @@ class VortexRingSolver(Solver):
             self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
 
         # Print computation results
-        end_time = time.time()
         if self._verbose:
-            print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
+            prog.display()
+            print()
+            print("Solver Results:")
             print("    Sum of doublet strengths: {0}".format(np.sum(self._mu)))
 
             if method=="svd":
@@ -136,32 +137,39 @@ class VortexRingSolver(Solver):
                 print("    Max singular value of A: {0}".format(np.max(s_a)))
                 print("    Min singular value of A: {0}".format(np.min(s_a)))
 
-        if self._verbose: print("\nDetermining velocities, pressure coefficients, and forces...", end='', flush=True)
-        start_time = time.time()
+        if self._verbose:
+            print()
+            prog = OneLineProgress(7, msg="Determining velocities, pressure coefficients, and forces")
 
         # Determine velocities at each control point induced by panels
         self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)
-
-        # Include vortex sheet principal value in the velocity
-        self._grad_mu = self._mesh.get_gradient(self._mu)
-        self._grad_mu_in_plane = np.einsum('ijk,ik->ij', self._P_surf, self._grad_mu)
-        self._v -= 0.5*self._grad_mu_in_plane
+        if self._verbose: prog.display()
 
         # Determine wake induced velocities
         self._v += np.sum(self._wake_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
+        if self._verbose: prog.display()
+
+        # Include doublet sheet principal value in the velocity
+        self._grad_mu = self._mesh.get_gradient(self._mu)
+        self._grad_mu_in_plane = np.einsum('ijk,ik->ij', self._P_surf, self._grad_mu)
+        self._v -= 0.5*self._grad_mu_in_plane
+        if self._verbose: prog.display()
 
         # Determine coefficients of pressure
         self._V = vec_norm(self._v)
         self._C_P = 1.0-(self._V*self._V)/self._V_inf_2
+        if self._verbose: prog.display()
 
         # Determine force acting on each panel
         self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
+        if self._verbose: prog.display()
 
         # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
         self._F = np.zeros(3)
         self._F[0] = np.sum(self._dF[:,0])
         self._F[1] = np.sum(self._dF[:,1])
         self._F[2] = np.sum(self._dF[:,2])
+        if self._verbose: prog.display()
 
         # Determine moment contribution due to each panel
         self._dM = vec_cross(self._mesh.r_CG, self._dF)
@@ -171,7 +179,6 @@ class VortexRingSolver(Solver):
         self._M[0] = np.sum(self._dM[:,0])
         self._M[1] = np.sum(self._dM[:,1])
         self._M[2] = np.sum(self._dM[:,2])
+        if self._verbose: prog.display()
 
-        end_time = time.time()
-        if self._verbose: print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
         return self._F, self._M
