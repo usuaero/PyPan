@@ -1,4 +1,4 @@
-"""Defines classes for handling basic geometric elements."""
+"""Defines classes for handling panels."""
 
 import numpy as np
 

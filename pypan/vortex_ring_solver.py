@@ -116,6 +116,7 @@ class VortexRingSolver(Solver):
         # Direct method
         if method=='direct':
             self._mu = np.linalg.solve(np.matmul(A.T, A), np.matmul(A.T, b[:,np.newaxis])).flatten()
+            res = np.matmul(A, self._mu[:,np.newaxis]).flatten()-b
 
         # Singular value decomposition
         elif method == "svd":
@@ -127,19 +128,20 @@ class VortexRingSolver(Solver):
             print()
             print("Solver Results:")
             print("    Sum of doublet strengths: {0}".format(np.sum(self._mu)))
+            try:
+                print("    Maximum residual magnitude: {0}".format(np.max(np.abs(res))))
+                print("    Average residual magnitude: {0}".format(np.average(np.abs(res))))
+            except:
+                pass
 
             if method=="svd":
-                try:
-                    print("    Maximum residual: {0}".format(np.max(res)))
-                except:
-                    pass
                 print("    Rank of A matrix: {0}".format(rank))
                 print("    Max singular value of A: {0}".format(np.max(s_a)))
                 print("    Min singular value of A: {0}".format(np.min(s_a)))
 
         if self._verbose:
             print()
-            prog = OneLineProgress(7, msg="Determining velocities, pressure coefficients, and forces")
+            prog = OneLineProgress(7, msg="Calculating derived quantities")
 
         # Determine velocities at each control point induced by panels
         self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)

@@ -39,7 +39,7 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
+    my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769)
 
     # Solve
     F, M = my_solver.solve(verbose=True)

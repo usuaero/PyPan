@@ -78,9 +78,7 @@ class Wake:
             Trailing vortex influences.
         """
 
-        points = kwargs.get("points")
-        N = len(points)
-        return np.zeros((N, N, 3))
+        return 0.0
 
 
 class NonIterativeWake(Wake):
