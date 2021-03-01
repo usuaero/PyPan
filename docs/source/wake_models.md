@@ -2,13 +2,13 @@
 
 As with all panel solvers, the accuracy of the flow results is dependent upon appropriately modeling the wake of the body. Various wake models are available in PyPan, as described below.
 
-The inclusion of a wake in PyPan is dependent upon the mesh having Kutta edges. If the mesh has no Kutta edges, no wake elements will be generated.
-
-**CURRENTLY "FIXED" IS THE ONLY AVAILABLE WAKE MODEL**
+The inclusion of a wake in PyPan is dependent upon the mesh having Kutta edges. If the mesh has no Kutta edges, no wake elements will be generated. A default wake (no wake) is initialized when a mesh object is instantiated. To set the wake, ```Mesh.set_wake()``` must be called. ```Solver.set_condition()``` must be called after ```Mesh.set_wake()``` as some wake types are dependent upon the flow condition.
 
 ## Fixed Wake
 
-This is the simplest wake model available in PyPan. It consists of a single, semi-infinite vortex filament extending from each vertex defining the Kutta edges on the body. The direction of the filaments is set and does not change throughout computation. The direction of these trailing filaments may be set in the following ways:
+This is the simplest wake model available in PyPan. It consists of a single, semi-infinite vortex filament extending from each vertex defining the Kutta edges on the body. The direction of the filaments is set and does not change throughout computation.
+
+The direction of these trailing filaments may be set in the following ways:
 
 ### "fixed"
 
@@ -32,4 +32,4 @@ Same as "freestream_and_rotation", except the direction of the filaments is cons
 
 ## Iterative Wake
 
-This wake model allows for updating the shape of the wake iteratively to enforce zero force acting on the wake filaments.
+This wake model allows for updating the shape of the wake iteratively to enforce zero force acting on the wake filaments. **NOT CURRENTLY AVAILABLE**

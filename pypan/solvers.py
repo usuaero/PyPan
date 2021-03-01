@@ -100,7 +100,29 @@ class Solver:
                 print("SCALARS doublet_strength float 1", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
                 for filament in self._mesh.wake.filaments:
-                    print("0.0", file=export_handle)
+
+                    # Determine strength of filament
+                    mu = 0
+
+                    # Add for outbound panels
+                    outbound_panels = filament.outbound_panels
+                    if len(outbound_panels)>0:
+                        mu -= self._mu[filament.outbound_panels[0]]
+                        mu += self._mu[filament.outbound_panels[1]]
+                        #vortex_influence_matrix[:,filament.outbound_panels[0]] -= V
+                        #vortex_influence_matrix[:,filament.outbound_panels[1]] += V
+
+                    # Add for inbound panels
+                    inbound_panels = filament.inbound_panels
+                    if len(inbound_panels)>0:
+                        mu += self._mu[filament.inbound_panels[0]]
+                        mu -= self._mu[filament.inbound_panels[1]]
+                        #vortex_influence_matrix[:,filament.inbound_panels[0]] += V
+                        #vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
+
+                    # Print out
+                    print("{0:<20.12}".format(mu), file=export_handle)
+
                 for mu in self._mu:
                     print("{0:<20.12}".format(mu), file=export_handle)
 
