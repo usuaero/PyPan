@@ -33,3 +33,9 @@ Same as "freestream_and_rotation", except the direction of the filaments is cons
 ## Iterative Wake
 
 This wake model allows for updating the shape of the wake iteratively to enforce zero force acting on the wake filaments. **NOT CURRENTLY AVAILABLE**
+
+Shaped vortex filaments are defined in a few ways:
+
+* The filaments are force free ($\mathbf{V}\times\mathbf{\gamma}=0$)
+* The filaments follow streamlines ($\gamma || \mathbf{V}$)
+* These are equivalent...

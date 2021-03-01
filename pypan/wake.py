@@ -27,36 +27,38 @@ class Wake:
     def _arrange_kutta_vertices(self):
         # Determines a unique list of the vertices defining all Kutta edges for the wake and the panels associated with each vertex
 
-        # Get array of all vertices
-        vertices = np.zeros((2*self._N_edges,3))
-        for i, edge in enumerate(self._kutta_edges):
-
-            # Store vertices
-            vertices[2*i] = edge.vertices[0]
-            vertices[2*i+1] = edge.vertices[1]
-
-        # Determine unique vertices
-        unique_vertices, inverse_indices = np.unique(vertices, return_inverse=True, axis=0)
-
-        # Initialize filaments
         self.filaments = []
-        for i, vertex in enumerate(unique_vertices):
+        if self._N_edges>0:
 
-            # Determine associated panels
-            inbound_panels = []
-            outbound_panels = []
-            for j, ind in enumerate(inverse_indices):
-                if ind==i:
-                    if j%2==0: # Inbound node for these panels
-                        inbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
-                    else: # Outbound node
-                        outbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+            # Get array of all vertices
+            vertices = np.zeros((2*self._N_edges,3))
+            for i, edge in enumerate(self._kutta_edges):
 
-            # Store filament
-            self.filaments.append(VortexFilament(vertex, inbound_panels, outbound_panels))
+                # Store vertices
+                vertices[2*i] = edge.vertices[0]
+                vertices[2*i+1] = edge.vertices[1]
 
-        # Store number
-        self.N = len(self.filaments)
+            # Determine unique vertices
+            unique_vertices, inverse_indices = np.unique(vertices, return_inverse=True, axis=0)
+
+            # Initialize filaments
+            for i, vertex in enumerate(unique_vertices):
+
+                # Determine associated panels
+                inbound_panels = []
+                outbound_panels = []
+                for j, ind in enumerate(inverse_indices):
+                    if ind==i:
+                        if j%2==0: # Inbound node for these panels
+                            inbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+                        else: # Outbound node
+                            outbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+
+                # Store filament
+                if isinstance(self, NonIterativeWake):
+                    self.filaments.append(FixedVortexFilament(vertex, inbound_panels, outbound_panels))
+                elif isinstance(self, IterativeWake):
+                    self.filaments.append(StreamlineVortexFilament(vertex, inbound_panels, outbound_panels))
 
 
     def get_influence_matrix(self, **kwargs):
@@ -196,6 +198,9 @@ class NonIterativeWake(Wake):
         points : ndarray
             Array of points at which to calculate the influence.
 
+        N_panels : int
+            Number of panels in the mesh to which this wake belongs.
+
         u_inf : ndarray
             Freestream direction vector.
         
@@ -213,7 +218,7 @@ class NonIterativeWake(Wake):
 
         # Initialize storage
         N = len(points)
-        vortex_influence_matrix = np.zeros((N, N, 3))
+        vortex_influence_matrix = np.zeros((N, kwargs["N_panels"], 3))
 
         # Get influence of edges
         for edge in self._kutta_edges:
@@ -282,8 +287,61 @@ class NonIterativeWake(Wake):
         return vertices, line_vertex_indices
 
 
-class VortexFilament:
+class FixedVortexFilament:
     """Defines a straight, semi-infinite vortex filament.
+
+    Parameters
+    ----------
+    origin : ndarray
+        Origin point of the filament.
+
+    inbound_panels : list
+        Indices of the two panels for which this is an inbound filament.
+
+    outbound_panels : list
+        Indices of the two panels for which this is an outbound filament.
+    """
+
+    def __init__(self, origin, inbound_panels, outbound_panels):
+
+        # Store info
+        self.p0 = origin
+        self.inbound_panels = inbound_panels
+        self.outbound_panels = outbound_panels
+
+
+    def set_dir(self, direction):
+        """Sets the direction of the filament.
+
+        Parameters
+        ----------
+        direction : ndarray
+            Direction of the vortex filament.
+        """
+
+        # Store direction
+        self.dir = direction
+
+
+    def get_influence(self, points):
+        """Determines the influence of this vortex filament on the specified points.
+
+        Parameters
+        ----------
+        points : ndarray
+            Points at which to calculate the influence.
+        """
+
+        # Determine displacement vector magnitudes
+        r = points-self.p0[np.newaxis,:]
+        r_mag = vec_norm(r)
+
+        # Calculate influence
+        return 0.25/np.pi*vec_cross(self.dir, r)/(r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
+
+
+class StreamlineVortexFilament:
+    """Defines a semi-infinite vortex filament which follows a streamline.
 
     Parameters
     ----------

@@ -102,7 +102,7 @@ class VortexRingSolver(Solver):
         method = kwargs.get("method", "direct")
 
         # Get wake influence matrix
-        self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega)
+        self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
         if self._verbose: prog.display()
 
         # Specify A matrix
@@ -186,3 +186,30 @@ class VortexRingSolver(Solver):
         if self._verbose: prog.display()
 
         return self._F, self._M
+
+    
+    def get_velocity_off_body(self, points):
+        """Determines the velocity at the given points off the body.
+
+        Parameters
+        ----------
+        points : ndarray
+            Array of points at which to evaluate the velocity.
+
+        Returns
+        -------
+        ndarray
+            Array of velocities at each point.
+        """
+
+        # Assemble influence matrix
+        inf_mat = np.zeros((points.shape[0], self._N_panels, 3))
+
+        # Panels
+        for i, panel in enumerate(self._mesh.panels):
+            inf_mat[:,i] = panel.get_ring_influence(points)
+
+        # Wake
+        inf_mat += self._mesh.wake.get_influence_matrix(points=points, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
+
+        return np.einsum('ijk,j', inf_mat, self._mu)

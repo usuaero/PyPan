@@ -34,6 +34,8 @@ class NewtonsSolver(Solver):
     def set_condition(self, **kwargs):
         """Sets the atmospheric conditions for the computation.
 
+        Parameters
+        ----------
         V_inf : list
             Freestream velocity vector.
         

@@ -530,7 +530,7 @@ class Mesh:
 
 
     def plot(self, **kwargs):
-        """Plots the mesh in 3D.
+        """Plots the mesh in 3D. Python's plotting library is very slow for large datasets and has a poor UI. We recommend using export_vtk() instead and importing into a dedicated renderer, such as Paraview.
 
         Parameters
         ----------
