@@ -50,9 +50,22 @@ class Solver:
 
             # Write vertices
             vertices, panel_indices = self._mesh.get_vtk_data()
-            print("POINTS {0} float".format(len(vertices)), file=export_handle)
+            wake_vertices, wake_filament_indices = self._mesh.wake.get_vtk_data()
+            print("POINTS {0} float".format(len(vertices)+len(wake_vertices)), file=export_handle)
             for vertex in vertices:
                 print("{0:<20.12}{1:<20.12}{2:<20.12}".format(*vertex), file=export_handle)
+            for vertex in wake_vertices:
+                print("{0:<20.12}{1:<20.12}{2:<20.12}".format(*vertex), file=export_handle)
+
+            # Determine wake filament list size
+            size = 0
+            for li in wake_filament_indices:
+                size += len(li)
+
+            # Write wake filaments
+            print("LINES {0} {1}".format(self._mesh.wake.N, size), file=export_handle)
+            for filament in wake_filament_indices:
+                print(" ".join([str(index) if i==0 else str(index+len(vertices)) for i, index in enumerate(filament)]), file=export_handle)
 
             # Determine polygon list size
             size = 0
@@ -65,16 +78,20 @@ class Solver:
                 print(" ".join([str(i) for i in panel]), file=export_handle)
 
             # Write flow results
-            print("CELL_DATA {0}".format(self._N_panels), file=export_handle)
+            print("CELL_DATA {0}".format(self._N_panels+self._mesh.wake.N), file=export_handle)
 
             # Normals
             print("NORMALS panel_normals float", file=export_handle)
+            for filament in self._mesh.wake.filaments:
+                print("{0:<20.12} {1:<20.12} {2:<20.12}".format(*filament.dir), file=export_handle)
             for n in self._mesh.n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 
             # Pressure coefficient
             print("SCALARS pressure_coefficient float 1", file=export_handle)
             print("LOOKUP_TABLE default", file=export_handle)
+            for filament in self._mesh.wake.filaments:
+                print("0.0", file=export_handle)
             for C_P in self._C_P:
                 print("{0:<20.12}".format(C_P), file=export_handle)
 
@@ -82,24 +99,32 @@ class Solver:
             if hasattr(self, "_mu"):
                 print("SCALARS doublet_strength float 1", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
+                for filament in self._mesh.wake.filaments:
+                    print("0.0", file=export_handle)
                 for mu in self._mu:
                     print("{0:<20.12}".format(mu), file=export_handle)
 
             # Velocity
             if hasattr(self, "_v"):
                 print("VECTORS velocity float", file=export_handle)
+                for filament in self._mesh.wake.filaments:
+                    print("0.0 0.0 0.0", file=export_handle)
                 for v in self._v:
                     print("{0:<20.12} {1:<20.12} {2:<20.12}".format(v[0], v[1], v[2]), file=export_handle)
 
                 # Normal velocity
                 print("SCALARS normal_velocity float", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
+                for filament in self._mesh.wake.filaments:
+                    print("0.0", file=export_handle)
                 for v_n in vec_inner(self._v, self._mesh.n):
                     print("{0:<20.12}".format(v_n), file=export_handle)
 
             # Gradient of potential
             if hasattr(self, "_grad_mu"):
                 print("VECTORS doublet_gradient float", file=export_handle)
+                for filament in self._mesh.wake.filaments:
+                    print("0.0 0.0 0.0", file=export_handle)
                 for grad_mu in self._grad_mu:
                     print("{0:<20.12} {1:<20.12} {2:<20.12}".format(grad_mu[0], grad_mu[1], grad_mu[2]), file=export_handle)
 

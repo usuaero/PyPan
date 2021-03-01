@@ -33,13 +33,13 @@ if __name__=="__main__":
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_wake(iterative=False, type="freestream")
+    my_mesh.set_wake(iterative=False, type="freestream_and_rotation", normal_dir=[1.0, 1.0, 1.0])
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769)
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Solve
     F, M = my_solver.solve(verbose=True)

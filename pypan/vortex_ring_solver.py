@@ -45,8 +45,8 @@ class VortexRingSolver(Solver):
         rho : float
             Freestream density.
         
-        angular_rate : list
-            Body-fixed angular rate vector (given in rad/s).
+        angular_rate : list, optional
+            Body-fixed angular rate vector (given in rad/s). Defaults to [0.0, 0.0, 0.0].
         """
 
         # Get freestream
@@ -55,9 +55,11 @@ class VortexRingSolver(Solver):
         self._u_inf = self._v_inf/self._V_inf
         self._V_inf_2 = self._V_inf*self._V_inf
         self._rho = kwargs["rho"]
+        self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
 
-        # Create part of b vector dependent upon V_inf
-        self._b = -vec_inner(self._v_inf, self._mesh.n)
+        # Create part of b vector dependent upon v_inf and rotation
+        v_rot = vec_cross(self._omega, self._mesh.cp)
+        self._b = -vec_inner(self._v_inf-v_rot, self._mesh.n)
 
         # Get solid body rotation
         self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))

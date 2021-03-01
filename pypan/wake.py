@@ -39,7 +39,7 @@ class Wake:
         unique_vertices, inverse_indices = np.unique(vertices, return_inverse=True, axis=0)
 
         # Initialize filaments
-        self._filaments = []
+        self.filaments = []
         for i, vertex in enumerate(unique_vertices):
 
             # Determine associated panels
@@ -53,7 +53,10 @@ class Wake:
                         outbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
 
             # Store filament
-            self._filaments.append(VortexFilament(vertex, inbound_panels, outbound_panels))
+            self.filaments.append(VortexFilament(vertex, inbound_panels, outbound_panels))
+
+        # Store number
+        self.N = len(self.filaments)
 
 
     def get_influence_matrix(self, **kwargs):
@@ -79,6 +82,18 @@ class Wake:
         """
 
         return 0.0
+
+
+    def get_vtk_data(self, **kwargs):
+        """Returns a list of vertices and line indices describing this wake.
+        
+        Parameters
+        ----------
+        length : float, optional
+            Length each vortex filament should be. Defaults to 5.0.
+        """
+
+        return [], []
 
 
 class NonIterativeWake(Wake):
@@ -111,7 +126,10 @@ class NonIterativeWake(Wake):
         # Get direction for fixed wake
         if self._type=="fixed":
             try:
-                self._dir = np.array(kwargs.get("dir"))
+                self.dir = np.array(kwargs.get("dir"))
+                self.dir /= norm(self.dir)
+                for filament in self.filaments:
+                    filament.set_dir(self.dir)
             except:
                 raise IOError("'dir' is required for wake type 'fixed'.")
 
@@ -119,6 +137,7 @@ class NonIterativeWake(Wake):
         if "constrained" in self._type:
             try:
                 self._n = np.array(kwargs.get("normal_dir"))
+                self._n /= norm(self._n)
             except:
                 raise IOError("'normal_dir' is required for wake type {0}.".format(self._type))
             
@@ -141,26 +160,26 @@ class NonIterativeWake(Wake):
         # Freestream direction
         if self._type=="freestream":
             u = v_inf/norm(v_inf)
-            for filament in self._filaments:
+            for filament in self.filaments:
                 filament.set_dir(u)
 
         # Freestream constrained
         elif self._type=="freestream_constrained":
             u = np.einsum('ij,j', self._P, v_inf)
             u /= norm(u)
-            for filament in self._filaments:
+            for filament in self.filaments:
                 filament.set_dir(u)
 
         # Freestream with rotation
         elif self._type=="freestream_and_rotation":
-            for filament in self._filaments:
+            for filament in self.filaments:
                 u = v_inf-cross(omega, filament.p0)
                 u /= norm(u)
                 filament.set_dir(u)
 
         # Freestream with rotation constrained
         elif self._type=="freestream_and_rotation_constrained":
-            for filament in self._filaments:
+            for filament in self.filaments:
                 u = v_inf-cross(omega, filament.p0)
                 u = np.einsum('ij,j', self._P, u)
                 u /= norm(u)
@@ -210,7 +229,7 @@ class NonIterativeWake(Wake):
             vortex_influence_matrix[:,p_ind[1]] = V
 
         # Get influence of filaments
-        for filament in self._filaments:
+        for filament in self.filaments:
 
             # Get influence
             V = filament.get_influence(points)
@@ -228,6 +247,39 @@ class NonIterativeWake(Wake):
                 vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
         
         return vortex_influence_matrix
+
+
+    def get_vtk_data(self, **kwargs):
+        """Returns a list of vertices and line indices describing this wake.
+        
+        Parameters
+        ----------
+        length : float, optional
+            Length each vortex filament should be. Defaults to 5.0.
+        """
+
+        # Get kwargs
+        l = kwargs.get("length", 5.0)
+
+        # Initialize storage
+        vertices = []
+        line_vertex_indices = []
+
+        # Loop through filaments
+        i = 0
+        for filament in self.filaments:
+
+            # Add vertices
+            vertices.append(filament.p0)
+            vertices.append(filament.p0+l*filament.dir)
+
+            # Add indices
+            line_vertex_indices.append([2, i, i+1])
+
+            # Increment index
+            i += 2
+
+        return vertices, line_vertex_indices
 
 
 class VortexFilament:
@@ -263,7 +315,7 @@ class VortexFilament:
         """
 
         # Store direction
-        self._dir = direction
+        self.dir = direction
 
 
     def get_influence(self, points):
@@ -280,7 +332,7 @@ class VortexFilament:
         r_mag = vec_norm(r)
 
         # Calculate influence
-        return 0.25/np.pi*vec_cross(self._dir, r)/(r_mag*(r_mag-vec_inner(self._dir, r)))[:,np.newaxis]
+        return 0.25/np.pi*vec_cross(self.dir, r)/(r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
 
 
 class KuttaEdge:
