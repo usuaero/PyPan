@@ -33,7 +33,7 @@ if __name__=="__main__":
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_wake(iterative=False, type="freestream_and_rotation", normal_dir=[1.0, 1.0, 1.0])
+    my_mesh.set_fixed_wake(type="freestream_and_rotation")
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)

@@ -1,5 +1,3 @@
-"""Defines classes for handling meshes."""
-
 import time
 
 import stl
@@ -26,35 +24,23 @@ class Mesh:
         Name of the mesh.
 
     mesh_file : str
-        File path to the mesh file. Please note that PyPan assumes the panel
-        normals all point outward. Failure to meet this condition can produce 
-        erroneous results.
+        File path to the mesh file. Please note that PyPan assumes the panel normals all point outward. Failure to meet this condition can produce erroneous results.
 
     mesh_file_type : str
         The type of mesh file being loaded. Can be "STL" or "VTK".
 
         ASCII or binary STL files may be used.
 
-        Currently PyPan can import a VTK *unstructured mesh*. The panels should
-        be given as POLYGONS. PyPan can accept no other format currently. Within
-        a VTK file, the normal vector, area, and centroid may also be given under
-        CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not
-        currently able to parse non-default lookup tables).
+        Currently PyPan can import a VTK *unstructured mesh*. The panels should be given as POLYGONS. PyPan can accept no other format currently. Within a VTK file, the normal vector, area, and centroid may also be given under CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not currently able to parse non-default lookup tables).
 
     kutta_angle : float, optional
-        The angle threshold for determining where the Kutta condition should
-        be enforced. Defaults to None, in which case Kutta edges will not be 
-        determined. This is not needed in some cases. See the documentation for
-        your specific solver to determine whether Kutta edges are required.
+        The angle threshold for determining where the Kutta condition should be enforced. Defaults to None, in which case Kutta edges will not be determined. This is not needed in some cases. See the documentation for your specific solver to determine whether Kutta edges are required.
 
     CG : list, optional
-        Location of the center of gravity for the mesh. This is the location about 
-        which moments are computed. Defaults to [0.0, 0.0, 0.0]. This is relative
-        to the coordinate system of the mesh.
+        Location of the center of gravity for the mesh. This is the location about which moments are computed. Defaults to [0.0, 0.0, 0.0]. This is relative to the coordinate system of the mesh.
 
     gradient_fit_type : str, optional
-        The type of basis functions to use for least-suares estimation of gradients.
-        May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
+        The type of basis functions to use for least-suares estimation of gradients. May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
     """
 
     def __init__(self, **kwargs):
@@ -498,35 +484,26 @@ class Mesh:
                 prog.display()
 
 
-    def set_wake(self, **kwargs):
-        """Sets the wake for this mesh. This should be called before executing a solver on this mesh.
+    def set_fixed_wake(self, **kwargs):
+        """Sets up a non-iterative wake for this mesh. This should be called before executing a solver on this mesh.
 
         Parameters
         ----------
         iterative : bool
-            Whether an iterative or non-iterative wake model is to be used. Defaults to False.
-            CURRENTLY ONLY NON-ITERATIVE WAKES ARE AVAILABLE.
+            Whether an iterative or non-iterative wake model is to be used. Defaults to False. CURRENTLY ONLY NON-ITERATIVE WAKES ARE AVAILABLE.
 
         type : str, optional
-            If non-iterative, may be "fixed", "freestream", "freestream_constrained",
-            "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults
-            to "freestream".
+            May be "custom", "freestream", "freestream_constrained", "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults to "freestream".
 
         dir : list or ndarray, optional
-            Direction of the vortex filaments. Required for type "fixed".
+            Direction of the vortex filaments. Required for type "custom".
 
         normal_dir : list or ndarray, optional
-            Normal direction of the plane in which the direction of the vortex filaments should
-            be constrained. Required for type "freestream_constrained" or 
-            "freestream_and_rotation_constrained".
+            Normal direction of the plane in which the direction of the vortex filaments should be constrained. Required for type "freestream_constrained" or "freestream_and_rotation_constrained".
         """
 
         # Initialize wake
-        self.iterative_wake = kwargs.get("iterative", False)
-        if not self.iterative_wake:
-            self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
-        else:
-            raise IOError("Iterative wake models are not currently implemented in PyPan.")
+        self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
 
 
     def plot(self, **kwargs):
@@ -541,8 +518,7 @@ class Mesh:
             Whether to display centroids. Defaults to False.
 
         kutta_edges : bool, optional
-            Whether to display the edges at which the Kutta condition will be enforced.
-            Defaults to True.
+            Whether to display the edges at which the Kutta condition will be enforced. Defaults to True.
         """
 
         # Set up plot
@@ -582,9 +558,7 @@ class Mesh:
 
 
     def export_vtk(self, filename):
-        """Exports the mesh to a VTK file. Please note this exports the mesh only.
-        There is an export_vtk() method within the Solver class which will export
-        the mesh along with the flow data.
+        """Exports the mesh to a VTK file. Please note this exports the mesh only. There is an export_vtk() method within the Solver class which will export the mesh along with the flow data.
 
         Parameters
         ----------
@@ -650,17 +624,13 @@ class Mesh:
 
 
     def get_vtk_data(self):
-        """Returns a list of vertices and a list of indices referencing each panel to
-        its vertices in the first list.
+        """Returns a list of vertices and a list of indices referencing each panel to its vertices in the first list.
         """
         return self._vertices, self._panel_vertex_indices
 
 
     def get_gradient(self, phi):
-        """Returns a least-squares estimate of the gradient of phi at each panel
-        centroid assuming a quadratic model for phi in the plane of the panel.
-        Phi should be given as the value of a scalar function at each
-        panel centroid, in the correct order.
+        """Returns a least-squares estimate of the gradient of phi **in the plane of the panel** at each panel centroid assuming a quadratic model for phi in the plane of the panel. Phi should be given as the value of a scalar function at each panel centroid, in the correct order.
 
         Parameters
         ----------

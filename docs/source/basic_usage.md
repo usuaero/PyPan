@@ -12,7 +12,7 @@ if __name__=="__main__":
     my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
 
     # Set wake
-    my_mesh.set_wake(iterative=False, type="freestream")
+    my_mesh.set_fixed_wake(type="freestream")
 
     # Plot mesh
     my_mesh.plot()

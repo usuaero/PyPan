@@ -42,29 +42,32 @@ class Wake:
             unique_vertices, inverse_indices = np.unique(vertices, return_inverse=True, axis=0)
 
             # Initialize filaments
+            inbound_panels = []
+            outbound_panels = []
             for i, vertex in enumerate(unique_vertices):
 
                 # Determine associated panels
-                inbound_panels = []
-                outbound_panels = []
+                ip = []
+                op = []
                 for j, ind in enumerate(inverse_indices):
                     if ind==i:
                         if j%2==0: # Inbound node for these panels
-                            inbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+                            ip = copy.copy(self._kutta_edges[j//2].panel_indices)
                         else: # Outbound node
-                            outbound_panels = copy.copy(self._kutta_edges[j//2].panel_indices)
+                            op = copy.copy(self._kutta_edges[j//2].panel_indices)
 
-                # Store filament
-                if isinstance(self, NonIterativeWake):
-                    self.filaments.append(FixedVortexFilament(vertex, inbound_panels, outbound_panels))
-                elif isinstance(self, IterativeWake):
-                    self.filaments.append(StreamlineVortexFilament(vertex, inbound_panels, outbound_panels))
+                # Store panels
+                inbound_panels.append(ip)
+                outbound_panels.append(op)
+
+        # Set number of filaments
+        self.N = len(self.filaments)
+
+        return unique_vertices, inbound_panels, outbound_panels
 
 
     def get_influence_matrix(self, **kwargs):
-        """Create wake influence matrix; first index is the influenced panels
-        (bordering the horseshoe vortex), second is the influencing panel, third is the 
-        velocity component.
+        """Create wake influence matrix; first index is the influenced panels (bordering the horseshoe vortex), second is the influencing panel, third is the velocity component.
 
         Parameters
         ----------
@@ -107,26 +110,30 @@ class NonIterativeWake(Wake):
         List of Kutta edges which define this wake.
 
     type : str
-        May be "fixed", "freestream", "freestream_constrained", "freestream_and_rotation",
-        or "freestream_and_rotation_constrained". Defaults to "freestream".
+        May be "custom", "freestream", "freestream_constrained", "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults to "freestream".
 
     dir : list or ndarray, optional
-        Direction of the vortex filaments. Required for type "fixed".
+        Direction of the vortex filaments. Required for type "custom".
 
     normal_dir : list or ndarray, optional
-        Normal direction of the plane in which the direction of the vortex filaments should
-        be constrained. Required for type "freestream_constrainted" or 
-        "freestream_and_rotation_constrained".
+        Normal direction of the plane in which the direction of the vortex filaments should be constrained. Required for type "freestream_constrainted" or "freestream_and_rotation_constrained".
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         # Store type
+        self.is_iterative = False
         self._type = kwargs.get("type", "freestream")
 
-        # Get direction for fixed wake
-        if self._type=="fixed":
+        # Initialize filaments
+        self.filaments = []
+        vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
+        for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
+            self.filaments.append(FixedVortexFilament(vertex, ip, op))
+
+        # Get direction for custom wake
+        if self._type=="custom":
             try:
                 self.dir = np.array(kwargs.get("dir"))
                 self.dir /= norm(self.dir)
@@ -147,7 +154,7 @@ class NonIterativeWake(Wake):
             self._P = np.eye(3)-np.matmul(self._n[:,np.newaxis], self._n[np.newaxis,:])
 
 
-    def update_filament_dirs(self, v_inf, omega):
+    def set_filament_direction(self, v_inf, omega):
         """Updates the direction of the vortex filaments based on the velocity params.
 
         Parameters
@@ -340,6 +347,56 @@ class FixedVortexFilament:
         return 0.25/np.pi*vec_cross(self.dir, r)/(r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
 
 
+class IterativeWake(Wake):
+    """Defines an iterative wake consisting of segmented semi-infinite vortex filaments. Will initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation.
+
+    Parameters
+    ----------
+    kutta_edges : list of KuttaEdge
+        List of Kutta edges which define this wake.
+
+    N_segments : int, optional
+        Number of segments to use for each filament. Defaults to 20.
+
+    segment_length : float, optional
+        Length of each discrete filament segment. Defaults to 1.0.
+
+    end_segment_infinite : bool, optional
+        Whether the final segment of the filament should be treated as infinite. Defaults to False.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Store type
+        self.is_iterative = True
+
+        # Initialize filaments
+        self.filaments = []
+        vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
+        for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
+            self.filaments.append(StreamlineVortexFilament(vertex, ip, op, **kwargs))
+
+
+    def set_filament_direction(self, v_inf, omega):
+        """Updates the initial direction of the vortex filaments based on the velocity params.
+
+        Parameters
+        ----------
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
+        """
+
+        # Freestream with rotation
+        for filament in self.filaments:
+            u = v_inf-cross(omega, filament.p0)
+            u /= norm(u)
+            filament.set_dir(u)
+
+
 class StreamlineVortexFilament:
     """Defines a semi-infinite vortex filament which follows a streamline.
 
@@ -353,6 +410,15 @@ class StreamlineVortexFilament:
 
     outbound_panels : list
         Indices of the two panels for which this is an outbound filament.
+
+    N_segments : int, optional
+        Number of segments to use for the filament. Defaults to 20.
+
+    segment_length : float, optional
+        Length of each discrete filament segment. Defaults to 1.0.
+
+    end_segment_infinite : bool, optional
+        Whether the final segment of the filament should be treated as infinite. Defaults to False.
     """
 
     def __init__(self, origin, inbound_panels, outbound_panels):
@@ -361,10 +427,13 @@ class StreamlineVortexFilament:
         self.p0 = origin
         self.inbound_panels = inbound_panels
         self.outbound_panels = outbound_panels
+        self.N = kwargs.get("N_segments", 20)
+        self.l = kwargs.get("segment_length", 1.0)
+        self._end_inf = kwargs.get("end_segment_infinite", False)
 
 
     def set_dir(self, direction):
-        """Sets the direction of the filament.
+        """Sets the initial direction of the filament.
 
         Parameters
         ----------
@@ -374,6 +443,9 @@ class StreamlineVortexFilament:
 
         # Store direction
         self.dir = direction
+
+        # Initialize points
+        self.points = self.p0[np.newaxis,:]+self.l*np.linspace(0.0, self.N*self.l, self.N+1)[:,np.newaxis]*self.dir[np.newaxis,:]
 
 
     def get_influence(self, points):

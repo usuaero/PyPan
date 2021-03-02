@@ -49,6 +49,9 @@ class VortexRingSolver(Solver):
             Body-fixed angular rate vector (given in rad/s). Defaults to [0.0, 0.0, 0.0].
         """
 
+        # Set solved flag
+        self._solved = False
+
         # Get freestream
         self._v_inf = np.array(kwargs["V_inf"])
         self._V_inf = norm(self._v_inf)
@@ -65,7 +68,7 @@ class VortexRingSolver(Solver):
         self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
 
         # Update wake
-        self._mesh.wake.update_filament_dirs(self._v_inf, self._omega)
+        self._mesh.wake.set_filament_direction(self._v_inf, self._omega)
 
 
     def solve(self, **kwargs):
@@ -155,8 +158,7 @@ class VortexRingSolver(Solver):
 
         # Include doublet sheet principal value in the velocity
         self._grad_mu = self._mesh.get_gradient(self._mu)
-        self._grad_mu_in_plane = np.einsum('ijk,ik->ij', self._P_surf, self._grad_mu)
-        self._v -= 0.5*self._grad_mu_in_plane
+        self._v -= 0.5*self._grad_mu
         if self._verbose: prog.display()
 
         # Determine coefficients of pressure
@@ -184,6 +186,9 @@ class VortexRingSolver(Solver):
         self._M[1] = np.sum(self._dM[:,1])
         self._M[2] = np.sum(self._dM[:,2])
         if self._verbose: prog.display()
+
+        # Set solved flag
+        self._solved = True
 
         return self._F, self._M
 

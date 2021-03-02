@@ -10,10 +10,6 @@ This is the simplest wake model available in PyPan. It consists of a single, sem
 
 The direction of these trailing filaments may be set in the following ways:
 
-### "fixed"
-
-Each vortex filament extends in the same direction as specified by the user.
-
 ### "freestream"
 
 Each vortex filament extends opposite the freestream direction.
@@ -29,6 +25,10 @@ Each vortex filament extends in the direction of the local velocity vector deter
 ### "freestream_and_rotation_constrained"
 
 Same as "freestream_and_rotation", except the direction of the filaments is constrained to be in the plane defined by the user-specified normal vector.
+
+### "custom"
+
+Each vortex filament extends in the same direction as specified by the user.
 
 ## Iterative Wake
 
