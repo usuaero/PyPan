@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
-from pypan.wake import Wake, NonIterativeWake, KuttaEdge
+from pypan.wake import Wake, NonIterativeWake, KuttaEdge, IterativeWake
 
 
 class Mesh:
@@ -501,6 +501,25 @@ class Mesh:
 
         # Initialize wake
         self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
+
+
+    def set_iterative_wake(self, **kwargs):
+        """Sets up an iterative wake consisting of segmented semi-infinite vortex filaments. Will initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation. This should be called before executing a solver on this mesh.
+
+        Parameters
+        ----------
+        N_segments : int, optional
+            Number of segments to use for each filament. Defaults to 20.
+
+        segment_length : float, optional
+            Length of each discrete filament segment. Defaults to 1.0.
+
+        end_segment_infinite : bool, optional
+            Whether the final segment of the filament should be treated as infinite. Defaults to False.
+        """
+
+        # Initialize wake
+        self.wake = IterativeWake(kutta_edges=self._kutta_edges, **kwargs)
 
 
     def plot(self, **kwargs):

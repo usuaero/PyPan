@@ -110,7 +110,9 @@ class VortexRingSolver(Solver):
 
         # Specify A matrix
         A = np.zeros((self._N_panels+1,self._N_panels))
-        A[:-1] = (self._A_panels+np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n))
+        A[:-1] = self._A_panels
+        if not isinstance(self._wake_influence_matrix, float):
+            A[:-1] += np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n)
         A[-1] = 1.0
         if self._verbose: prog.display()
 

@@ -27,7 +27,6 @@ class Wake:
     def _arrange_kutta_vertices(self):
         # Determines a unique list of the vertices defining all Kutta edges for the wake and the panels associated with each vertex
 
-        self.filaments = []
         if self._N_edges>0:
 
             # Get array of all vertices
@@ -59,9 +58,6 @@ class Wake:
                 # Store panels
                 inbound_panels.append(ip)
                 outbound_panels.append(op)
-
-        # Set number of filaments
-        self.N = len(self.filaments)
 
         return unique_vertices, inbound_panels, outbound_panels
 
@@ -95,10 +91,15 @@ class Wake:
         Parameters
         ----------
         length : float, optional
-            Length each vortex filament should be. Defaults to 5.0.
+            Length each fixed vortex filament should be. Defaults to 5.0.
         """
 
         return [], []
+
+    
+    def set_filament_direction(self, v_inf, omega):
+        """Sets the initial direction of the vortex filaments."""
+        pass
 
 
 class NonIterativeWake(Wake):
@@ -131,6 +132,9 @@ class NonIterativeWake(Wake):
         vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
         for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
             self.filaments.append(FixedVortexFilament(vertex, ip, op))
+
+        # Store number of filaments
+        self.N = len(self.filaments)
 
         # Get direction for custom wake
         if self._type=="custom":
@@ -291,7 +295,7 @@ class NonIterativeWake(Wake):
             # Increment index
             i += 2
 
-        return vertices, line_vertex_indices
+        return vertices, line_vertex_indices, self.N
 
 
 class FixedVortexFilament:
@@ -315,6 +319,7 @@ class FixedVortexFilament:
         self.p0 = origin
         self.inbound_panels = inbound_panels
         self.outbound_panels = outbound_panels
+        self.N = 1
 
 
     def set_dir(self, direction):
@@ -377,6 +382,9 @@ class IterativeWake(Wake):
         for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
             self.filaments.append(StreamlineVortexFilament(vertex, ip, op, **kwargs))
 
+        # Store number of filaments
+        self.N = len(self.filaments)
+
 
     def set_filament_direction(self, v_inf, omega):
         """Updates the initial direction of the vortex filaments based on the velocity params.
@@ -395,6 +403,46 @@ class IterativeWake(Wake):
             u = v_inf-cross(omega, filament.p0)
             u /= norm(u)
             filament.set_dir(u)
+
+
+    def get_vtk_data(self, **kwargs):
+        """Returns a list of vertices and line indices describing this wake.
+        
+        Parameters
+        ----------
+        length : float, optional
+            Length of the final filament segment, if set as infinite.
+        """
+
+        # Get kwargs
+        l = kwargs.get("length", 5.0)
+
+        # Initialize storage
+        vertices = []
+        line_vertex_indices = []
+
+        # Loop through filaments
+        i = 0
+        for filament in self.filaments:
+
+            # Add vertices
+            for j, vertex in enumerate(filament.points):
+                vertices.append(vertex)
+
+                # Add indices
+                if j!=len(filament.points)-1:
+                    line_vertex_indices.append([2, i+j, i+j+1])
+
+            # Treat infinite end segment
+            if filament.end_inf:
+                u = vertices[-1]-vertices[-2]
+                u /= norm(u)
+                vertices[-1] = vertices[-2]+u*l
+
+            # Increment index
+            i += filament.points.shape[0]
+
+        return vertices, line_vertex_indices, self.N*self.filaments[0].N
 
 
 class StreamlineVortexFilament:
@@ -421,7 +469,7 @@ class StreamlineVortexFilament:
         Whether the final segment of the filament should be treated as infinite. Defaults to False.
     """
 
-    def __init__(self, origin, inbound_panels, outbound_panels):
+    def __init__(self, origin, inbound_panels, outbound_panels, **kwargs):
 
         # Store info
         self.p0 = origin
@@ -429,7 +477,7 @@ class StreamlineVortexFilament:
         self.outbound_panels = outbound_panels
         self.N = kwargs.get("N_segments", 20)
         self.l = kwargs.get("segment_length", 1.0)
-        self._end_inf = kwargs.get("end_segment_infinite", False)
+        self.end_inf = kwargs.get("end_segment_infinite", False)
 
 
     def set_dir(self, direction):
@@ -457,12 +505,23 @@ class StreamlineVortexFilament:
             Points at which to calculate the influence.
         """
 
+        ## Determine displacement vectors
+        #r0 = points-self.vertices[0,:]
+        #r1 = points-self.vertices[1,:]
+
+        ## Determine displacement vector magnitudes
+        #r0_mag = vec_norm(r0)
+        #r1_mag = vec_norm(r1)
+
+        ## Calculate influence of bound segment
+        #return 0.25*((r0_mag+r1_mag)/(np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,np.newaxis]*vec_cross(r0, r1)
+
         # Determine displacement vector magnitudes
         r = points-self.p0[np.newaxis,:]
         r_mag = vec_norm(r)
 
         # Calculate influence
-        return 0.25/np.pi*vec_cross(self.dir, r)/(r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
+        return 0.25*vec_cross(self.dir, r)/(np.pi*r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
 
 
 class KuttaEdge:
@@ -526,15 +585,8 @@ class KuttaEdge:
         r1 = points-self.vertices[1,:]
 
         # Determine displacement vector magnitudes
-        r0_mag = vec_norm(r0)[:,np.newaxis]
-        r1_mag = vec_norm(r1)[:,np.newaxis]
+        r0_mag = vec_norm(r0)
+        r1_mag = vec_norm(r1)
 
         # Calculate influence of bound segment
-        v_01 = ((r0_mag+r1_mag)*vec_cross(r0, r1))/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1)[:,np.newaxis]))
-
-        # Calculate influence of trailing segments
-        v_0_inf = vec_cross(u_inf, r0)/(r0_mag*(r0_mag-vec_inner(u_inf, r0)[:,np.newaxis]))
-        v_1_inf = vec_cross(u_inf, r1)/(r1_mag*(r1_mag-vec_inner(u_inf, r1)[:,np.newaxis]))
-
-        #return 0.25/np.pi*(-v_0_inf+v_01+v_1_inf)
-        return 0.25/np.pi*v_01
+        return 0.25*((r0_mag+r1_mag)/(np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,np.newaxis]*vec_cross(r0, r1)
