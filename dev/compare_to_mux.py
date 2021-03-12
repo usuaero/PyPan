@@ -17,8 +17,6 @@ if __name__=="__main__":
         },
         "units" : "English",
         "scene" : {
-            "atmosphere" : {
-            }
         }
     }
 
@@ -26,19 +24,9 @@ if __name__=="__main__":
     airplane_dict = {
         "weight" : 50.0,
         "units" : "English",
-        "controls" : {
-            "aileron" : {
-                "is_symmetric" : False
-            },
-            "elevator" : {
-                "is_symmetric" : True
-            },
-            "rudder" : {
-                "is_symmetric" : False
-            }
-        },
         "airfoils" : {
             "NACA_0010" : {
+                #"CLa" : 6.808347851,
                 "geometry" : {
                     "NACA" : "0010"
                 }
@@ -53,14 +41,12 @@ if __name__=="__main__":
                 "airfoil" : [[0.0, "NACA_0010"],
                              [1.0, "NACA_0010"]],
                 "semispan" : 6.0,
-                "dihedral" : [[0.0, 0.0],
-                              [1.0, 0.0]],
                 "chord" : [[0.0, 1.0],
                            [1.0, 1.0]],
                 "sweep" : [[0.0, 45.0],
                            [1.0, 45.0]],
                 "grid" : {
-                    "N" : 30
+                    "N" : 50
                 },
                 "CAD_options" :{
                     "round_wing_tip" : True,
@@ -86,12 +72,32 @@ if __name__=="__main__":
 
     # Export vtk
     vtk_file = "swept_wing.vtk"
-    scene.export_vtk(filename="swept_wing.vtk", section_resolution=41)
+    scene.export_vtk(filename="swept_wing.vtk", section_resolution=61)
 
+    # Generate mesh
     my_mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
     my_mesh.export_vtk("swept_wing_pp.vtk")
+    my_mesh.set_fixed_wake(type='freestream')
+
+    # Initialize solver
     solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
     solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    FM = solver.solve(lifting=True, verbose=True)
-    print(FM)
+
+    # Solve
+    F, M = solver.solve(lifting=True, verbose=True)
+    print("Force vector: {0}".format(F))
+    print("Moment vector: {0}".format(M))
+
+    # Export results
     solver.export_vtk("case.vtk")
+
+    # Comparison
+    print()
+    print("% Error from PyPan")
+    print("------------------")
+    print("Fx: {0}%".format(100.0*abs((F[0]-FM['Fx'])/F[0])))
+    print("Fy: {0}%".format(100.0*abs((F[1]-FM['Fy'])/F[1])))
+    print("Fz: {0}%".format(100.0*abs((F[2]-FM['Fz'])/F[2])))
+    print("Mx: {0}%".format(100.0*abs((M[0]-FM['Mx'])/M[0])))
+    print("My: {0}%".format(100.0*abs((M[1]-FM['My'])/M[1])))
+    print("Mz: {0}%".format(100.0*abs((M[2]-FM['Mz'])/M[2])))

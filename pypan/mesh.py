@@ -489,9 +489,6 @@ class Mesh:
 
         Parameters
         ----------
-        iterative : bool
-            Whether an iterative or non-iterative wake model is to be used. Defaults to False. CURRENTLY ONLY NON-ITERATIVE WAKES ARE AVAILABLE.
-
         type : str, optional
             May be "custom", "freestream", "freestream_constrained", "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults to "freestream".
 
