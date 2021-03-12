@@ -2,7 +2,7 @@
 
 The greatest thing since PAN AIR.
 
-![Vortex rollup on a swept wing as predicted by PyPan.](PyPan.png)
+![Vortex rollup on a swept wing as predicted by PyPan.](docs/source/PyPan.png)
 
 ## Documentation
 
