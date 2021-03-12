@@ -4,6 +4,7 @@ import numpy as np
 
 from abc import abstractmethod
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, cross
+from pypan.helpers import OneLineProgress
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -238,7 +239,7 @@ class NonIterativeWake(Wake):
             p_ind = edge.panel_indices
 
             # Get infulence
-            V = edge.get_vortex_influence(points, kwargs.get("u_inf")[np.newaxis,:])
+            V = edge.get_vortex_influence(points)
 
             # Store
             vortex_influence_matrix[:,p_ind[0]] = -V
@@ -379,6 +380,8 @@ class IterativeWake(Wake):
         # Initialize filaments
         self.filaments = []
         vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
+        self.l = kwargs.get('segment_length', 1.0)
+        self.N_segments = kwargs.get('N_segments', 20)
         for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
             self.filaments.append(StreamlineVortexFilament(vertex, ip, op, **kwargs))
 
@@ -484,7 +487,7 @@ class IterativeWake(Wake):
             p_ind = edge.panel_indices
 
             # Get infulence
-            V = edge.get_vortex_influence(points, kwargs.get("u_inf")[np.newaxis,:])
+            V = edge.get_vortex_influence(points)
 
             # Store
             vortex_influence_matrix[:,p_ind[0]] = -V
@@ -499,19 +502,19 @@ class IterativeWake(Wake):
             # Add for outbound panels
             outbound_panels = filament.outbound_panels
             if len(outbound_panels)>0:
-                vortex_influence_matrix[:,filament.outbound_panels[0]] -= V
-                vortex_influence_matrix[:,filament.outbound_panels[1]] += V
+                vortex_influence_matrix[:,outbound_panels[0]] -= V
+                vortex_influence_matrix[:,outbound_panels[1]] += V
 
             # Add for inbound panels
             inbound_panels = filament.inbound_panels
             if len(inbound_panels)>0:
-                vortex_influence_matrix[:,filament.inbound_panels[0]] += V
-                vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
+                vortex_influence_matrix[:,inbound_panels[0]] += V
+                vortex_influence_matrix[:,inbound_panels[1]] -= V
         
         return vortex_influence_matrix
 
 
-    def update(self, velocity_from_body, mu):
+    def update(self, velocity_from_body, mu, v_inf, verbose):
         """Updates the shape of the wake based on solved flow results.
 
         Parameters
@@ -521,14 +524,94 @@ class IterativeWake(Wake):
 
         mu : ndarray
             Vector of doublet strengths.
+
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        verbose : bool
         """
 
-        # Determine location of first filament vertex off body
-        # Will require the initial predictor location being set slightly off the body to avoid huge velocities
+        if verbose:
+            print()
+            prog = OneLineProgress(self.N_segments+1, msg="    Updating wake shape")
 
-        # Loop through all other vertices, going row by row out from the body
-        # No special treatment will be needed for final segment, as the inifinite part is handled by the influence function
-        pass
+        # Get starting locations (offset slightly from origin to avoid singularities)
+        curr_loc = np.zeros((self.N, 3))
+        for i, filament in enumerate(self.filaments):
+            curr_loc[i] = filament.p0+filament.dir*0.01
+        
+        if verbose: prog.display()
+
+        # Loop through filament segments (the first vertex never changes)
+        next_loc = np.zeros((self.N, 3))
+        for i in range(1,self.N_segments+1):
+
+            # Determine velocities at current point
+            v0 = velocity_from_body(curr_loc)+v_inf[np.newaxis,:]
+            v0 += self._get_velocity_from_other_filaments_and_edges(curr_loc, mu)
+
+            # Guess of next location
+            next_loc = curr_loc+self.l*v0/vec_norm(v0)[:,np.newaxis]
+
+            # Velocities at next location
+            v1 = velocity_from_body(next_loc)+v_inf[np.newaxis,:]
+            v1 += self._get_velocity_from_other_filaments_and_edges(next_loc, mu)
+
+            # Correct location
+            v_avg = 0.5*(v0+v1)
+            next_loc = curr_loc+self.l*v_avg/vec_norm(v_avg)[:,np.newaxis]
+
+            # Store in filament
+            for j, filament in enumerate(self.filaments):
+                filament.points[i] = next_loc[j]
+
+            # Move downstream
+            curr_loc = np.copy(next_loc)
+
+            if verbose: prog.display()
+
+
+    def _get_velocity_from_other_filaments_and_edges(self, points, mu):
+        # Determines the velocity at each point (assumed to be on a filament) induced by all other filaments and Kutta edges
+
+        # Initialize storage
+        v_ind = np.zeros((points.shape[0], 3))
+
+        # Loop through points
+        for i, filament in enumerate(self.filaments):
+
+            # Get indices of points not belonging to this filament
+            ind = [j for j in range(self.N) if j!=i]
+
+            # Get influence vector
+            v = filament.get_influence(points[ind])
+
+            # Add for outbound panels
+            outbound_panels = filament.outbound_panels
+            if len(outbound_panels)>0:
+                v_ind[ind] -= v*mu[outbound_panels[0]]
+                v_ind[ind] += v*mu[outbound_panels[1]]
+
+            # Add for inbound panels
+            inbound_panels = filament.inbound_panels
+            if len(inbound_panels)>0:
+                v_ind[ind] += v*mu[inbound_panels[0]]
+                v_ind[ind] -= v*mu[inbound_panels[1]]
+
+        # Get influence of edges
+        for edge in self._kutta_edges:
+
+            # Get indices of panels defining the edge
+            p_ind = edge.panel_indices
+
+            # Get infulence
+            v = edge.get_vortex_influence(points)
+
+            # Store
+            v_ind += -v*mu[p_ind[0]]
+            v_ind += v*mu[p_ind[1]]
+
+        return v_ind
 
 
 class StreamlineVortexFilament:
@@ -658,7 +741,7 @@ class KuttaEdge:
         return s
 
 
-    def get_vortex_influence(self, points, u_inf):
+    def get_vortex_influence(self, points):
         """Determines the velocity vector induced by this edge at arbitrary
         points, assuming a horseshoe vortex is shed from this edge.
 
@@ -667,9 +750,6 @@ class KuttaEdge:
         points : ndarray
             An array of points where the first index is the point index and 
             the second index is the coordinate.
-
-        u_inf : ndarray
-            Freestream direction vectors. Same shape as points.
 
         Returns
         -------

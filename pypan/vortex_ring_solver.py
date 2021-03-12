@@ -200,7 +200,7 @@ class VortexRingSolver(Solver):
 
             # Update wake
             if not dont_iterate_on_wake:
-                self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu)
+                self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu, self._v_inf, self._verbose)
 
         # Set solved flag
         self._solved = True
@@ -232,7 +232,7 @@ class VortexRingSolver(Solver):
         # Wake
         inf_mat += self._mesh.wake.get_influence_matrix(points=points, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
 
-        return np.einsum('ijk,j', inf_mat, self._mu)
+        return np.einsum('ijk,j', inf_mat, self._mu)+self._v_inf[np.newaxis,:]
 
 
     def get_velocity_induced_by_body(self, points):
