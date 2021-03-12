@@ -33,7 +33,7 @@ if __name__=="__main__":
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_iterative_wake(end_segment_infinite=True)
+    my_mesh.set_fixed_wake(end_segment_infinite=True)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
@@ -42,7 +42,8 @@ if __name__=="__main__":
     my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Solve
-    F, M = my_solver.solve(verbose=True)
+    F, M = my_solver.solve(verbose=True, wake_iterations=1)
+    print()
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))

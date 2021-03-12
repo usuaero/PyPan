@@ -402,7 +402,7 @@ class IterativeWake(Wake):
         for filament in self.filaments:
             u = v_inf-cross(omega, filament.p0)
             u /= norm(u)
-            filament.set_dir(u)
+            filament.initialize_points(u)
 
 
     def get_vtk_data(self, **kwargs):
@@ -445,6 +445,92 @@ class IterativeWake(Wake):
         return vertices, line_vertex_indices, self.N*self.filaments[0].N
 
 
+    def get_influence_matrix(self, **kwargs):
+        """Create wake influence matrix; first index is the influenced panels
+        (bordering the horseshoe vortex), second is the influencing panel, third is the 
+        velocity component.
+
+        Parameters
+        ----------
+        points : ndarray
+            Array of points at which to calculate the influence.
+
+        N_panels : int
+            Number of panels in the mesh to which this wake belongs.
+
+        u_inf : ndarray
+            Freestream direction vector.
+        
+        omega : ndarray
+            Body-fixed rotation rates.
+
+        Returns
+        -------
+        ndarray
+            Trailing vortex influences.
+        """
+
+        # Get kwargs
+        points = kwargs.get("points")
+
+        # Initialize storage
+        N = len(points)
+        vortex_influence_matrix = np.zeros((N, kwargs["N_panels"], 3))
+
+        # Get influence of edges
+        for edge in self._kutta_edges:
+
+            # Get indices of panels defining the edge
+            p_ind = edge.panel_indices
+
+            # Get infulence
+            V = edge.get_vortex_influence(points, kwargs.get("u_inf")[np.newaxis,:])
+
+            # Store
+            vortex_influence_matrix[:,p_ind[0]] = -V
+            vortex_influence_matrix[:,p_ind[1]] = V
+
+        # Get influence of filaments
+        for filament in self.filaments:
+
+            # Get influence
+            V = filament.get_influence(points)
+
+            # Add for outbound panels
+            outbound_panels = filament.outbound_panels
+            if len(outbound_panels)>0:
+                vortex_influence_matrix[:,filament.outbound_panels[0]] -= V
+                vortex_influence_matrix[:,filament.outbound_panels[1]] += V
+
+            # Add for inbound panels
+            inbound_panels = filament.inbound_panels
+            if len(inbound_panels)>0:
+                vortex_influence_matrix[:,filament.inbound_panels[0]] += V
+                vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
+        
+        return vortex_influence_matrix
+
+
+    def update(self, velocity_from_body, mu):
+        """Updates the shape of the wake based on solved flow results.
+
+        Parameters
+        ----------
+        velocity_from_body : callable
+            Function which will return the velocity induced by the body at a given set of points.
+
+        mu : ndarray
+            Vector of doublet strengths.
+        """
+
+        # Determine location of first filament vertex off body
+        # Will require the initial predictor location being set slightly off the body to avoid huge velocities
+
+        # Loop through all other vertices, going row by row out from the body
+        # No special treatment will be needed for final segment, as the inifinite part is handled by the influence function
+        pass
+
+
 class StreamlineVortexFilament:
     """Defines a semi-infinite vortex filament which follows a streamline.
 
@@ -480,8 +566,8 @@ class StreamlineVortexFilament:
         self.end_inf = kwargs.get("end_segment_infinite", False)
 
 
-    def set_dir(self, direction):
-        """Sets the initial direction of the filament.
+    def initialize_points(self, direction):
+        """Initializes the points making up this filament.
 
         Parameters
         ----------
@@ -505,23 +591,34 @@ class StreamlineVortexFilament:
             Points at which to calculate the influence.
         """
 
-        ## Determine displacement vectors
-        #r0 = points-self.vertices[0,:]
-        #r1 = points-self.vertices[1,:]
-
-        ## Determine displacement vector magnitudes
-        #r0_mag = vec_norm(r0)
-        #r1_mag = vec_norm(r1)
-
-        ## Calculate influence of bound segment
-        #return 0.25*((r0_mag+r1_mag)/(np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,np.newaxis]*vec_cross(r0, r1)
+        # Determine displacement vectors
+        if self.end_inf:
+            r0 = points[:,np.newaxis,:]-self.points[np.newaxis,:-2,:]
+            r1 = points[:,np.newaxis,:]-self.points[np.newaxis,1:-1,:]
+        else:
+            r0 = points[:,np.newaxis,:]-self.points[np.newaxis,:-1,:]
+            r1 = points[:,np.newaxis,:]-self.points[np.newaxis,1:,:]
 
         # Determine displacement vector magnitudes
-        r = points-self.p0[np.newaxis,:]
-        r_mag = vec_norm(r)
+        r0_mag = vec_norm(r0)
+        r1_mag = vec_norm(r1)
 
-        # Calculate influence
-        return 0.25*vec_cross(self.dir, r)/(np.pi*r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
+        # Calculate influence of each segment
+        inf = np.sum(((r0_mag+r1_mag)/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,:,np.newaxis]*vec_cross(r0, r1), axis=1)
+
+        # Add influence of last segment, if needed
+        if self.end_inf:
+
+            # Determine displacement vector magnitudes
+            r = r1[:,-1,:]
+            r_mag = vec_norm(r)
+            u = self.points[-1]-self.points[-2]
+            u /= norm(u)
+
+            # Calculate influence
+            inf += vec_cross(u, r)/(r_mag*(r_mag-vec_inner(u, r)))[:,np.newaxis]
+
+        return 0.25/np.pi*inf
 
 
 class KuttaEdge:
