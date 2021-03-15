@@ -81,7 +81,7 @@ class VortexRingSolver(Solver):
             Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
-            How many times the shape of the wake should be iterated on. This will only be used if the mesh has been set with an iterative wake. Defaults to 10.
+            How many times the shape of the wake should be iterated on. This will only be used if the mesh has been set with an iterative wake. On the first iteration, the wake shape is assumed to be simply in the direction of the freestream. Thus, if the effects of wake rollup are to be observed, at least 2 wake iterations must be allowed. Defaults to 3.
 
         verbose : bool, optional
 
@@ -99,7 +99,7 @@ class VortexRingSolver(Solver):
 
         # Get kwargs
         method = kwargs.get("method", "direct")
-        wake_iterations = kwargs.get("wake_iterations", 10)
+        wake_iterations = kwargs.get("wake_iterations", 3)
         dont_iterate_on_wake = isinstance(self._mesh.wake, NonIterativeWake)
         if dont_iterate_on_wake:
             wake_iterations = 1

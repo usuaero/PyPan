@@ -369,6 +369,9 @@ class IterativeWake(Wake):
 
     end_segment_infinite : bool, optional
         Whether the final segment of the filament should be treated as infinite. Defaults to False.
+
+    corrector_iterations : int, optional
+        How many times to correct the streamline prediction at each step. Defaults to 1.
     """
 
     def __init__(self, **kwargs):
@@ -377,11 +380,14 @@ class IterativeWake(Wake):
         # Store type
         self.is_iterative = True
 
+        # Get kwargs
+        self.l = kwargs.get('segment_length', 1.0)
+        self.N_segments = kwargs.get('N_segments', 20)
+        self._corrector_iterations = kwargs.get('corrector_iterations', 1)
+
         # Initialize filaments
         self.filaments = []
         vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
-        self.l = kwargs.get('segment_length', 1.0)
-        self.N_segments = kwargs.get('N_segments', 20)
         for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
             self.filaments.append(StreamlineVortexFilament(vertex, ip, op, **kwargs))
 
@@ -553,13 +559,16 @@ class IterativeWake(Wake):
             # Guess of next location
             next_loc = curr_loc+self.l*v0/vec_norm(v0)[:,np.newaxis]
 
-            # Velocities at next location
-            v1 = velocity_from_body(next_loc)+v_inf[np.newaxis,:]
-            v1 += self._get_velocity_from_other_filaments_and_edges(next_loc, mu)
+            # Iteratively correct
+            for j in range(self._corrector_iterations):
 
-            # Correct location
-            v_avg = 0.5*(v0+v1)
-            next_loc = curr_loc+self.l*v_avg/vec_norm(v_avg)[:,np.newaxis]
+                # Velocities at next location
+                v1 = velocity_from_body(next_loc)+v_inf[np.newaxis,:]
+                v1 += self._get_velocity_from_other_filaments_and_edges(next_loc, mu)
+
+                # Correct location
+                v_avg = 0.5*(v0+v1)
+                next_loc = curr_loc+self.l*v_avg/vec_norm(v_avg)[:,np.newaxis]
 
             # Store in filament
             for j, filament in enumerate(self.filaments):
