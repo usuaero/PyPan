@@ -2,7 +2,9 @@
 
 As with all panel solvers, the accuracy of the flow results is dependent upon appropriately modeling the wake of the body. Various wake models are available in PyPan, as described below.
 
-The inclusion of a wake in PyPan is dependent upon the mesh having Kutta edges. If the mesh has no Kutta edges, no wake elements will be generated. A default wake (no wake) is initialized when a mesh object is instantiated. To set the wake, ```Mesh.set_wake()``` must be called. ```Solver.set_condition()``` must be called after ```Mesh.set_wake()``` as some wake types are dependent upon the flow condition.
+The inclusion of a wake in PyPan is dependent upon the mesh having Kutta edges. If the mesh has no Kutta edges, no wake elements will be generated. A dummy wake which contains no trailing vortex elements and does not enforce the Kutta condition is initialized when a mesh object is instantiated. The mesh may then be passed to the solver with this dummy wake in place (appropriate for nonlifting bodies) or another wake may be set. To set a fixed or iterative wake, ```Mesh.set_fixed_wake()``` or ```Mesh.set_iterative_wake()``` must be called, respectively. The wake should be set on the mesh before the mesh is passed to the solver and ```Solver.set_condition()``` is called as some wake types are dependent upon the flow condition and these are updated when ```Solver.set_condition()``` is called.
+
+Below, the various types of wake models available in PyPan are described on a conceptual level. For how to implement a given wake model in the API, see [Meshes](mesh).
 
 ## Fixed Wake
 
@@ -32,10 +34,4 @@ Each vortex filament extends in the same direction as specified by the user.
 
 ## Iterative Wake
 
-This wake model allows for updating the shape of the wake iteratively to enforce zero force acting on the wake filaments. **NOT CURRENTLY AVAILABLE**
-
-Shaped vortex filaments are defined in a few ways:
-
-* The filaments are force free ($\mathbf{V}\times\mathbf{\gamma}=0$)
-* The filaments follow streamlines ($\gamma || \mathbf{V}$)
-* These are equivalent...
+This wake model allows for updating the shape of the wake iteratively to have the wake filaments follow the streamlines of the flow. This is done over multiple iterations of solving the potential flow about the body. Each filament is made up of a set of finite segments which change position with every iteration. In general, it is recommended that the number and length of the filament segments be specified such that the wake extends a significant distance behind the body. Setting ```"end_segment_infinite"``` can help with this, but should be used with judgement.
