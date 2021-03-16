@@ -21,16 +21,14 @@ class Network:
     vertices : ndarray, optional
         Array of vertices defining this network.
 
-    kn : float
-
-    kt : float
+    type_code : float
+        Number code for the type of network this is.
     """
 
     def __init__(self, **kwargs):
 
         # Get kwargs
-        self.kn = kwargs.get("kn")
-        self.kt = kwargs.get("kt")
+        self.type_code = kwargs.get("type_code")
         self.name = kwargs.get("name")
 
         # Parse input
@@ -116,7 +114,7 @@ class Network:
             vertices[:,1] *= -1.0
 
         # Create new network
-        return Network(name=self.name+"_{0}_mirror".format(plane), panels=panels, vertices=vertices, kn=self.kn, kt=self.kt)
+        return Network(name=self.name+"_{0}_mirror".format(plane), panels=panels, vertices=vertices, type_code=self.type_code)
 
 
     def calc_local_coords(self, **kwargs):

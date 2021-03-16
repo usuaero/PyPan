@@ -54,9 +54,7 @@ class Mesh:
                         if "xz" in plane:
                             xz_sym = bool(float(plane_toggle))
 
-                # Get panel parameters
-                if "=kn" in line:
-                    kn = int(float(lines[i+1].split()[0]))
+                # Get network type
                 elif "=kt" in line:
                     kt = int(float(lines[i+1].split()[0]))
 
@@ -70,9 +68,9 @@ class Mesh:
 
                     # Initialize network object
                     if n_rows%2 != 0:
-                        self._networks.append(Network(name=line.split()[-1], lines=lines[i:i+int((n_rows//2+1)*n_cols)+2], kn=kn, kt=kt))
+                        self._networks.append(Network(name=line.split()[-1], lines=lines[i:i+int((n_rows//2+1)*n_cols)+2], type_code=kt))
                     else:
-                        self._networks.append(Network(name=line.split()[-1], lines=lines[i:i+int(n_rows//2*n_cols)+2], kn=kn, kt=kt))
+                        self._networks.append(Network(name=line.split()[-1], lines=lines[i:i+int(n_rows//2*n_cols)+2], type_code=kt))
 
                 # End mesh parsing
                 elif "$FLOW-FIELD" in line:
@@ -105,7 +103,7 @@ class Mesh:
         ----------
         """
 
-        # Arbitrary colors for each type of panel
+        # Arbitrary colors for each type of network
         colors = {
             11 : "#0000FF",
             18 : "#FF0000",
@@ -123,7 +121,7 @@ class Mesh:
             for i in range(network.n_rows):
                 for j in range(network.n_cols):
                     panel = network.panels[i,j].projected_panel
-                    ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.kt], linewidth=0.2)
+                    ax.plot(panel.vertices[:,0], panel.vertices[:,1], panel.vertices[:,2], '-', color=colors[network.type_code], linewidth=0.2)
 
                     #for midpoint in panel.midpoints:
                     #    ax.plot(midpoint[0], midpoint[1], midpoint[2], '.', linewidth=0.4)
@@ -149,7 +147,7 @@ class Mesh:
         z_diff = z_lims[1]-z_lims[0]
         
         # Determine max range
-        max_diff = max(max(x_diff, y_diff), z_diff)
+        max_diff = max(max(x_diff, y_diff), z_diff)/2.0
 
         # Determine center of each axis
         x_avg = 0.5*(x_lims[0]+x_lims[1])
