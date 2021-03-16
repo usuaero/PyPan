@@ -1,8 +1,3 @@
-# Basic Usage
-
-A simple, introductory case of using PyPan is shown below.
-
-```python
 import pypan as pp
 
 if __name__=="__main__":
@@ -30,4 +25,3 @@ if __name__=="__main__":
 
     # Export results as VTK
     my_solver.export_vtk("case_results.vtk")
-```

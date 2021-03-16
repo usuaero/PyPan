@@ -34,7 +34,7 @@ if __name__=="__main__":
                 "side" : "both",
                 "is_main" : True,
                 "semispan" : 3.0,
-                "airfoil" : "NACA_0010",
+                "airfoil" : "NACA_2410",
                 "chord" : [[0.0, 2.0],
                            [1.0, 1.0]],
                 "sweep" : [[0.0, 45.0],

@@ -8,7 +8,7 @@ from abc import abstractmethod
 from pypan.pp_math import vec_inner, vec_norm, norm
 
 class Solver:
-    """Base class for solvers."""
+    """Base class for solvers. This class should never be instantiated directly but only through one of its derived classes."""
 
     def __init__(self, **kwargs):
 
@@ -28,7 +28,7 @@ class Solver:
 
 
     def export_vtk(self, filename):
-        """Exports the mesh(es) and solver results to a VTK file.
+        """Exports the solver results on the mesh to a VTK file.
 
         Parameters
         ----------
@@ -160,83 +160,8 @@ class Solver:
             print("Case results successfully written to '{0}'.".format(filename))
 
 
-    def alpha_sweep(self, **kwargs):
-        """Sweeps the solver through a range of angle of attack. Note this will always solve the lifting case.
-
-        Parameters
-        ----------
-        V_inf : float
-            Freestream velocity magnitude.
-
-        alpha_lims : list
-            Limits in angle of attack for the sweep, given in degrees.
-
-        N_alpha : int, optional
-            Number of angles of attack to solve within the range specified
-            by alpha_lims. Defaults to 10.
-
-        rho : float
-            Freestream atmospheric density.
-
-        results_dir : str, optional
-            File path to a directory where the results at each step in alpha can be
-            stored. If not given, the results will not be stored. Should end with '/'.
-
-        Returns
-        -------
-        alphas : ndarray
-            Angles of attack for the sweep, given in degrees.
-
-        F : ndarray
-            An array of the force vector at each angle of attack, given in mesh coordinates.
-
-        F_w : ndarray
-            An array of the force vector at each angle of attack, given in wind coordinates.
-        """
-
-        # Determine alpha range
-        a_lims = kwargs["alpha_lims"]
-        N_a = kwargs.get("N_alpha", 10)
-        alphas = np.linspace(np.radians(a_lims[0]), np.radians(a_lims[1]), N_a)
-        C_a = np.cos(alphas)
-        S_a = np.sin(alphas)
-
-        # Get other kwargs
-        V_inf = kwargs.pop("V_inf")
-        results_dir = kwargs.get("results_dir", None)
-        if not os.path.exists(results_dir):
-            os.mkdir(results_dir)
-
-        # Initialize storage
-        F = np.zeros((N_a, 3))
-
-        # Loop through alphas
-        for i, a in enumerate(alphas):
-
-            # Determine freestream vector
-            V = [-V_inf*C_a[i], 0.0, -V_inf*S_a[i]]
-
-            # Set condition
-            self.set_condition(V_inf=V, **kwargs)
-
-            # Solve
-            F[i] = self.solve(lifting=True)
-
-            # Export
-            if results_dir is not None:
-                self.export_vtk(results_dir+"a_{0}.vtk".format(np.degrees(a)))
-
-        # Convert to wind coordinates
-        F_w = np.zeros((N_a, 3))
-        F_w[:,0] = -C_a*F[:,0]-S_a*F[:,2]
-        F_w[:,1] = F[:,1]
-        F_w[:,2] = S_a*F[:,0]-C_a*F[:,2]
-
-        return np.degrees(alphas), F, F_w
-
-
     def export_case_data(self, filename):
-        """Writes the case data to the given file.
+        """Writes the results of the solver to the given file. Data will be formatted in columns with each row containing the data for a single panel.
 
         Parameters
         ----------
@@ -256,11 +181,7 @@ class Solver:
                       ("v", "float"),
                       ("w", "float"),
                       ("V", "float"),
-                      ("C_P", "float"),
-                      ("dFx", "float"),
-                      ("dFy", "float"),
-                      ("dFz", "float"),
-                      ("circ", "float")]
+                      ("C_P", "float")]
 
         table_data = np.zeros(self._N_panels, dtype=item_types)
 
@@ -278,19 +199,14 @@ class Solver:
         table_data[:]["v"] = self._v[:,1]
         table_data[:]["w"] = self._v[:,2]
         table_data[:]["V"] = self._V
+
+        # Pressure coefficient
         table_data[:]["C_P"] = self._C_P
 
-        # Circulation and forces
-        table_data[:]["dFx"] = self._dF[:,0]
-        table_data[:]["dFy"] = self._dF[:,1]
-        table_data[:]["dFz"] = self._dF[:,2]
-        table_data[:]["circ"] = self._mu[:self._N_panels]
-
         # Define header and output
-        header = "{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}".format(
-                 "Control (x)", "Control (y)", "Control (z)", "nx", "ny", "nz", "Area", "u", "v", "w", "V", "C_P", "dFx", "dFy",
-                 "dFz", "circ")
-        format_string = "%20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e"
+        header = "{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}{:<21}".format(
+                 "x", "y", "z", "nx", "ny", "nz", "A", "u", "v", "w", "V", "C_P")
+        format_string = "%20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e %20.12e"
 
         # Save
         np.savetxt(filename, table_data, fmt=format_string, header=header)

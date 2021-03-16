@@ -46,7 +46,7 @@ if __name__=="__main__":
                 "sweep" : [[0.0, 45.0],
                            [1.0, 45.0]],
                 "grid" : {
-                    "N" : 50
+                    "N" : 30
                 },
                 "CAD_options" :{
                     "round_wing_tip" : True,
@@ -71,13 +71,13 @@ if __name__=="__main__":
     print(json.dumps(FM, indent=4))
 
     # Export vtk
-    vtk_file = "swept_wing.vtk"
-    scene.export_vtk(filename="swept_wing.vtk", section_resolution=61)
+    vtk_file = "dev/meshes/mux_compare.vtk"
+    scene.export_vtk(filename=vtk_file, section_resolution=61)
 
     # Generate mesh
     my_mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
-    my_mesh.export_vtk("swept_wing_pp.vtk")
-    my_mesh.set_fixed_wake(type='freestream')
+    #my_mesh.export_vtk("swept_wing_pp.vtk")
+    my_mesh.set_fixed_wake(type='freestream', dir=[-1.0, 0.0, 0.0])
 
     # Initialize solver
     solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
@@ -89,7 +89,7 @@ if __name__=="__main__":
     print("Moment vector: {0}".format(M))
 
     # Export results
-    solver.export_vtk("case.vtk")
+    solver.export_vtk(vtk_file.replace("meshes", "results"))
 
     # Comparison
     print()

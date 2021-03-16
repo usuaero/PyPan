@@ -111,11 +111,11 @@ class VortexRingSolver(Solver):
                 print("====================")
             if self._verbose:
                 print()
-                prog = OneLineProgress(3, msg="    Solving case")
+                start_time = time.time()
+                print("    Solving case (this may take a while)...", flush=True, end='')
 
             # Get wake influence matrix
             self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
-            if self._verbose: prog.display()
 
             # Specify A matrix
             A = np.zeros((self._N_panels+1,self._N_panels))
@@ -123,7 +123,6 @@ class VortexRingSolver(Solver):
             if not isinstance(self._wake_influence_matrix, float):
                 A[:-1] += np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n)
             A[-1] = 1.0
-            if self._verbose: prog.display()
 
             # Specify b vector
             b = np.zeros(self._N_panels+1)
@@ -140,7 +139,7 @@ class VortexRingSolver(Solver):
 
             # Print computation results
             if self._verbose:
-                prog.display()
+                print("Finished. Time: {0}".format(time.time()-start_time))
                 print()
                 print("    Solver Results:")
                 print("        Sum of doublet strengths: {0}".format(np.sum(self._mu)))

@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
-    mesh_file = "dev/meshes/swept_wing_and_tail.stl"
+    mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
+    #mesh_file = "dev/meshes/swept_wing_and_tail.stl"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
@@ -34,7 +34,7 @@ if __name__=="__main__":
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_iterative_wake(end_segment_infinite=False, segment_length=0.5, N_segments=50)
+    my_mesh.set_iterative_wake(end_segment_infinite=True, segment_length=0.5, N_segments=50)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
