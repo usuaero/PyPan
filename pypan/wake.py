@@ -541,6 +541,9 @@ class IterativeWake(Wake):
             print()
             prog = OneLineProgress(self.N_segments+1, msg="    Updating wake shape")
 
+        # Initialize storage
+        new_locs = np.zeros((self.N, self.N_segments, 3))
+
         # Get starting locations (offset slightly from origin to avoid singularities)
         curr_loc = np.zeros((self.N, 3))
         for i, filament in enumerate(self.filaments):
@@ -570,14 +573,17 @@ class IterativeWake(Wake):
                 v_avg = 0.5*(v0+v1)
                 next_loc = curr_loc+self.l*v_avg/vec_norm(v_avg)[:,np.newaxis]
 
-            # Store in filament
-            for j, filament in enumerate(self.filaments):
-                filament.points[i] = next_loc[j]
+            # Store
+            new_locs[:,i-1,:] = np.copy(next_loc)
 
             # Move downstream
             curr_loc = np.copy(next_loc)
 
             if verbose: prog.display()
+
+        # Store the new locations in the filaments.
+        for i, filament in enumerate(self.filaments):
+            filament.points[1:] = new_locs[i]
 
 
     def _get_velocity_from_other_filaments_and_edges(self, points, mu):
@@ -659,7 +665,7 @@ class StreamlineVortexFilament:
 
 
     def initialize_points(self, direction):
-        """Initializes the points making up this filament.
+        """Initializes the points making up this filament. Includes the origin point.
 
         Parameters
         ----------

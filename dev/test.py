@@ -10,7 +10,7 @@ if __name__=="__main__":
 
     # Load mesh
     mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
-    #mesh_file = "dev/meshes/swept_wing_and_tail.stl"
+    #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
@@ -40,10 +40,10 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -2.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Solve
-    F, M = my_solver.solve(verbose=True, wake_iterations=5)
+    F, M = my_solver.solve(verbose=True, wake_iterations=10)
     print()
     print("F: ", F)
     print("M: ", M)

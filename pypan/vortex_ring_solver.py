@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from pypan.solvers import Solver
 from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
 from pypan.helpers import OneLineProgress
-from pypan.wake import NonIterativeWake
+from pypan.wake import NonIterativeWake, Wake, IterativeWake
 
 class VortexRingSolver(Solver):
     """Vortex ring (doublet sheet) solver.
@@ -100,7 +100,7 @@ class VortexRingSolver(Solver):
         # Get kwargs
         method = kwargs.get("method", "direct")
         wake_iterations = kwargs.get("wake_iterations", 3)
-        dont_iterate_on_wake = isinstance(self._mesh.wake, NonIterativeWake)
+        dont_iterate_on_wake = not isinstance(self._mesh.wake, IterativeWake)
         if dont_iterate_on_wake:
             wake_iterations = 1
 
