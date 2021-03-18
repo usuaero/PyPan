@@ -20,9 +20,7 @@ class Wake:
         # Store Kutta edges
         self._kutta_edges = kwargs["kutta_edges"]
         self._N_edges = len(self._kutta_edges)
-
-        # Create unique list of vertices
-        self._arrange_kutta_vertices()
+        self.filaments = []
 
 
     def _arrange_kutta_vertices(self):
@@ -95,7 +93,7 @@ class Wake:
             Length each fixed vortex filament should be. Defaults to 5.0.
         """
 
-        return [], []
+        return [], [], 0
 
     
     def set_filament_direction(self, v_inf, omega):

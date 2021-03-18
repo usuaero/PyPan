@@ -339,6 +339,9 @@ class Mesh:
         # Get Kutta angle
         theta_K = kwargs.get("kutta_angle", None)
 
+        # Initialize edge storage
+        self._kutta_edges = []
+
         # Look for adjacent panels where the Kutta condition should be applied
         if theta_K is not None:
             theta_K = np.radians(theta_K)
@@ -354,9 +357,6 @@ class Mesh:
             # Determine which panels have an angle greater than the Kutta angle
             angle_greater = (theta>theta_K).astype(int)
             i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
-
-            # Initialize edge storage
-            self._kutta_edges = []
 
             # Loop through possible combinations
             for i in i_panels:
@@ -399,13 +399,8 @@ class Mesh:
                 if self._verbose:
                     prog.display()
 
-            # Store number of edges
-            self.N_edges = len(self._kutta_edges)
-
-        else:
-
-            # If a Kutta angle is not given, then there are no edges
-            self.N_edges = 0
+        # Store number of edges
+        self.N_edges = len(self._kutta_edges)
 
         if self._verbose:
             print()
