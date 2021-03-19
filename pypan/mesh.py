@@ -33,6 +33,10 @@ class Mesh:
 
         Currently PyPan can import a VTK *unstructured mesh*. The panels should be given as POLYGONS. PyPan can accept no other format currently. Within a VTK file, the normal vector, area, and centroid may also be given under CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not currently able to parse non-default lookup tables).
 
+
+    adjacency_file : str, optional
+        Name of the panel adjacency mapping file for this mesh. Must be previously generated using Mesh.export_panel_adjacency_mapping(). Defaults to None, in which case the panel adjacency mapping will be determined using a brute force approach. Also, if the file cannot be found as specified, it will be ignored and the panel adjacency mapping will be determined using the brute force approach.
+
     kutta_angle : float, optional
         The angle threshold for determining where the Kutta condition should be enforced. Defaults to None, in which case Kutta edges will not be determined. This is not needed in some cases. See the documentation for your specific solver to determine whether Kutta edges are required.
 
@@ -46,9 +50,9 @@ class Mesh:
     def __init__(self, **kwargs):
 
         # Load kwargs
-        self.name = kwargs.get("name")
-        mesh_file = kwargs.get("mesh_file")
-        mesh_type = kwargs.get("mesh_file_type")
+        self.name = kwargs["name"]
+        mesh_file = kwargs["mesh_file"]
+        mesh_type = kwargs["mesh_file_type"]
         self._verbose = kwargs.get("verbose", False)
         self.CG = np.array(kwargs.get("CG", [0.0, 0.0, 0.0]))
 
@@ -67,7 +71,7 @@ class Mesh:
             self._determine_panel_vertex_mapping()
 
         # Determine panel adjacency mapping
-        self._determine_panel_adjacency_mapping()
+        self._determine_panel_adjacency_mapping(**kwargs)
 
         # Find Kutta edges
         self._find_kutta_edges(**kwargs)
@@ -296,41 +300,84 @@ class Mesh:
         self._vertices = np.array(self._vertices) # Cannot do this for _panel_vertex_indices because the length of each list element is not necessarily the same
 
 
-    def _determine_panel_adjacency_mapping(self):
+    def _determine_panel_adjacency_mapping(self, **kwargs):
         # Stores a list of the indices to each adjacent panel for each panel
+        
+        not_determined = True
 
-        if self._verbose:
-            print()
-            prog = OneLineProgress(self.N, msg="Building panel adjacency mapping")
+        # Check for adjacency file
+        adjacency_file = kwargs.get("adjacency_file", None)
+        if adjacency_file is not None:
+            
+            # Try to find file
+            try:
+                with open(adjacency_file, 'r') as adj_handle:
 
-        # Loop through possible combinations
-        for i, panel_i in enumerate(self.panels):
+                    # Get lines
+                    lines = adj_handle.readlines()
+                    lines = lines[1:] # Skip header
 
-            for j in range(i+1, self.N):
-                panel_j = self.panels[j]
-                
-                # Determine if we're touching and/or abutting
-                num_shared = 0
-                for i_vert in self._panel_vertex_indices[i][1:]:
+                    # Check number of panels
+                    if len(lines)%2 != 0:
+                        raise IOError("Data error in {0}. Should have two lines for each panel!".format(adjacency_file))
+                    if len(lines)//2 != self.N:
+                        raise IOError("Data error in {0}. Mesh has {0} panels. File describes mapping for {2} panels.".format(adjacency_file, self.N, len(lines)//2))
 
-                    # Check for shared vertex
-                    if i_vert in self._panel_vertex_indices[j][1:]:
-                        num_shared += 1
-                        if num_shared==2:
-                            break # Don't need to keep going
-                        
-                # Touching panels (at least one shared vertex)
-                if num_shared>0 and j not in panel_i.touching_panels:
-                    panel_i.touching_panels.append(j)
-                    panel_j.touching_panels.append(i)
+                    # Loop through lines to store mapping
+                    for i, line in enumerate(lines):
+                        info = line.split()
+                        panel_ind = i//2
 
-                # Abutting panels (two shared vertices)
-                if num_shared==2 and j not in panel_i.abutting_panels:
-                    panel_i.abutting_panels.append(j)
-                    panel_j.abutting_panels.append(i)
+                        # Check the panel index is correct
+                        if panel_ind != int(info[0]):
+                            raise IOError("Input mismatch at line {0} of {1}. Panel index should be {2}; got {3}.".format(i, adjacency_file, panel_ind, int(info[0])))
+
+                        # Store
+                        if i%2==0:
+                            self.panels[panel_ind].abutting_panels = [int(ind) for ind in info[1:]]
+                        else:
+                            self.panels[panel_ind].touching_panels = [int(ind) for ind in info[1:]]
+
+                not_determined = False
+
+            except OSError:
+                warnings.warn("Adjacency file not found as specified. Reverting to brute force determination.")
+
+        # Brute force approach
+        if not_determined:
 
             if self._verbose:
-                prog.display()
+                print()
+                prog = OneLineProgress(self.N, msg="Determining panel adjacency mapping")
+
+            # Loop through possible combinations
+            for i, panel_i in enumerate(self.panels):
+
+                for j in range(i+1, self.N):
+                    panel_j = self.panels[j]
+
+                    # Determine if we're touching and/or abutting
+                    num_shared = 0
+                    for i_vert in self._panel_vertex_indices[i][1:]:
+
+                        # Check for shared vertex
+                        if i_vert in self._panel_vertex_indices[j][1:]:
+                            num_shared += 1
+                            if num_shared==2:
+                                break # Don't need to keep going
+                            
+                    # Touching panels (at least one shared vertex)
+                    if num_shared>0 and j not in panel_i.touching_panels:
+                        panel_i.touching_panels.append(j)
+                        panel_j.touching_panels.append(i)
+
+                    # Abutting panels (two shared vertices)
+                    if num_shared==2 and j not in panel_i.abutting_panels:
+                        panel_i.abutting_panels.append(j)
+                        panel_j.abutting_panels.append(i)
+
+                if self._verbose:
+                    prog.display()
 
 
     def _find_kutta_edges(self, **kwargs):
@@ -680,3 +727,33 @@ class Mesh:
                 grad_phi[i] = np.einsum('ij,i', panel.A_t, np.array([c[0], c[1], 0.0]))
 
         return grad_phi
+
+
+    def export_panel_adjacency_mapping(self, filename):
+        """Writes the panel adjacency mapping to the specified file. This mapping can then be read into PyPan when initializing the mesh on subsequent runs, speeding up initialization times.
+
+        Parameters
+        ----------
+        filename : str
+            Name of the file to write the panel adjacency mapping to. Should be type ".pam".
+
+        """
+
+        # Check file extension
+        if ".pam" not in filename:
+            raise IOError("Filename for writing a panel adjacency mapping must be of type '.pam'.")
+
+        # Open file
+        with open(filename, 'w') as file_handle:
+
+            # Write header
+            print("### Panel adjacency mapping for {0}".format(self.name), file=file_handle)
+
+            # Loop through panels to write to file
+            for i, panel in enumerate(self.panels):
+
+                # Write abutting panels
+                print(str(i)+" "+(" ".join(["{}"]*len(panel.abutting_panels))).format(*panel.abutting_panels), file=file_handle)
+
+                # Write touching panels
+                print(str(i)+" "+(" ".join(["{}"]*len(panel.touching_panels))).format(*panel.touching_panels), file=file_handle)

@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
+    #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
-    #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
+    mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
@@ -21,16 +21,25 @@ if __name__=="__main__":
 
     # Start timer
     start_time = time.time()
+    pam_file = mesh_file.replace(".stl", ".pam").replace(".vtk", ".pam")
 
     # Load mesh
     if 'stl' in mesh_file or 'STL' in mesh_file:
-        my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
+        name = mesh_file.replace("dev/meshes/", "").replace(".stl", "")
+        my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     else:
-        my_mesh = pp.Mesh(mesh_file=mesh_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
+        name = mesh_file.replace("dev/meshes/", "").replace(".vtk", "")
+        my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
 
     # Export vtk if we need to
-    if not os.path.isfile(mesh_file.replace(".stl", ".vtk")):
-        my_mesh.export_vtk(mesh_file.replace(".stl", ".vtk"))
+    vtk_file = mesh_file.replace(".stl", ".vtk")
+    if not os.path.isfile(vtk_file):
+        my_mesh.export_vtk(vtk_file)
+
+    # Export adjacency mapping if we need to
+    if not os.path.isfile(pam_file):
+        my_mesh.export_panel_adjacency_mapping(pam_file)
+
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
@@ -43,7 +52,7 @@ if __name__=="__main__":
     my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Solve
-    F, M = my_solver.solve(verbose=True, wake_iterations=10)
+    F, M = my_solver.solve(verbose=True, wake_iterations=3)
     print()
     print("F: ", F)
     print("M: ", M)
@@ -52,3 +61,6 @@ if __name__=="__main__":
 
     # Export results as VTK
     my_solver.export_vtk(mesh_file.replace("meshes", "results").replace("stl", "vtk"))
+
+    print()
+    print("Total execution time: {0} s".format(time.time()-start_time))
