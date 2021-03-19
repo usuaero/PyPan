@@ -63,6 +63,7 @@ class VortexRingSolver(Solver):
 
         # Create part of b vector dependent upon v_inf and rotation
         v_rot = vec_cross(self._omega, self._mesh.cp)
+        self._v_inf_and_rot = self._v_inf-v_rot
         self._b = -vec_inner(self._v_inf-v_rot, self._mesh.n)
 
         # Get solid body rotation
@@ -112,7 +113,7 @@ class VortexRingSolver(Solver):
             if self._verbose:
                 print()
                 start_time = time.time()
-                print("    Solving case (this may take a while)...", flush=True, end='')
+                print("    Solving singularity strengths (this may take a while)...", flush=True, end='')
 
             # Get wake influence matrix
             self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
@@ -159,7 +160,7 @@ class VortexRingSolver(Solver):
                 prog = OneLineProgress(7, msg="    Calculating derived quantities")
 
             # Determine velocities at each control point induced by panels
-            self._v = self._v_inf[np.newaxis,:]+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)
+            self._v = self._v_inf_and_rot+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)
             if self._verbose: prog.display()
 
             # Determine wake induced velocities
@@ -199,7 +200,7 @@ class VortexRingSolver(Solver):
 
             # Update wake
             if not dont_iterate_on_wake:
-                self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu, self._v_inf, self._verbose)
+                self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu, self._v_inf, self._omega, self._verbose)
 
         # Set solved flag
         self._solved = True

@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
+    mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
-    mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
+    #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
@@ -22,13 +22,12 @@ if __name__=="__main__":
     # Start timer
     start_time = time.time()
     pam_file = mesh_file.replace(".stl", ".pam").replace(".vtk", ".pam")
+    name = mesh_file.replace("dev/meshes/", "").replace(".stl", "").replace(".vtk", "")
 
     # Load mesh
     if 'stl' in mesh_file or 'STL' in mesh_file:
-        name = mesh_file.replace("dev/meshes/", "").replace(".stl", "")
         my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     else:
-        name = mesh_file.replace("dev/meshes/", "").replace(".vtk", "")
         my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
 
     # Export vtk if we need to
@@ -49,7 +48,7 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[-2.0, 3.0, -2.0])
 
     # Solve
     F, M = my_solver.solve(verbose=True, wake_iterations=3)

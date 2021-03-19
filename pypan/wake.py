@@ -518,7 +518,7 @@ class IterativeWake(Wake):
         return vortex_influence_matrix
 
 
-    def update(self, velocity_from_body, mu, v_inf, verbose):
+    def update(self, velocity_from_body, mu, v_inf, omega, verbose):
         """Updates the shape of the wake based on solved flow results.
 
         Parameters
@@ -531,6 +531,9 @@ class IterativeWake(Wake):
 
         v_inf : ndarray
             Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
 
         verbose : bool
         """
@@ -554,7 +557,7 @@ class IterativeWake(Wake):
         for i in range(1,self.N_segments+1):
 
             # Determine velocities at current point
-            v0 = velocity_from_body(curr_loc)+v_inf[np.newaxis,:]
+            v0 = velocity_from_body(curr_loc)+v_inf[np.newaxis,:]-vec_cross(omega, curr_loc)
             v0 += self._get_velocity_from_other_filaments_and_edges(curr_loc, mu)
 
             # Guess of next location
