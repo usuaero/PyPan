@@ -39,10 +39,9 @@ if __name__=="__main__":
     if not os.path.isfile(pam_file):
         my_mesh.export_panel_adjacency_mapping(pam_file)
 
-
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_fixed_wake(end_segment_infinite=True, segment_length=0.5, N_segments=50)
+    my_mesh.set_fixed_wake(end_segment_infinite=True, segment_length=0.5, N_segments=50, type="freestream_and_rotation")
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)

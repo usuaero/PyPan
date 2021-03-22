@@ -28,7 +28,7 @@ class Solver:
 
 
     def export_vtk(self, filename):
-        """Exports the solver results on the mesh to a VTK file.
+        """Exports the solver results on the mesh to a VTK file. If a wake exists, the only meaningful scalar result which will be specified on the wake filaments is the filament strength. All other results are arbitrarily set to zero on the wake.
 
         Parameters
         ----------
@@ -85,18 +85,16 @@ class Solver:
 
             # Normals
             print("NORMALS panel_normals float", file=export_handle)
-            for i in range(self._mesh.wake.N):
-                for j in range(self._mesh.wake.N_segments):
-                    print("{0:<20.12} {1:<20.12} {2:<20.12}".format(0.0, 0.0, 0.0), file=export_handle)
+            for i in range(N_segments):
+                print("0.00 0.00 0.00", file=export_handle)
             for n in self._mesh.n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 
             # Pressure coefficient
             print("SCALARS pressure_coefficient float 1", file=export_handle)
             print("LOOKUP_TABLE default", file=export_handle)
-            for filament in self._mesh.wake.filaments:
-                for i in range(filament.N):
-                    print("0.0", file=export_handle)
+            for i in range(N_segments):
+                print("0.0", file=export_handle)
             for C_P in self._C_P:
                 print("{0:<20.12}".format(C_P), file=export_handle)
 
@@ -104,25 +102,25 @@ class Solver:
             if hasattr(self, "_mu"):
                 print("SCALARS doublet_strength float 1", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
-                for filament in self._mesh.wake.filaments:
+                for i in range(self._mesh.wake.N):
 
                     # Determine strength of filament
                     mu = 0
 
                     # Add for outbound panels
-                    outbound_panels = filament.outbound_panels
+                    outbound_panels = self._mesh.wake.outbound_panels[i]
                     if len(outbound_panels)>0:
-                        mu -= self._mu[filament.outbound_panels[0]]
-                        mu += self._mu[filament.outbound_panels[1]]
+                        mu -= self._mu[outbound_panels[0]]
+                        mu += self._mu[outbound_panels[1]]
 
                     # Add for inbound panels
-                    inbound_panels = filament.inbound_panels
+                    inbound_panels = self._mesh.wake.inbound_panels[i]
                     if len(inbound_panels)>0:
-                        mu += self._mu[filament.inbound_panels[0]]
-                        mu -= self._mu[filament.inbound_panels[1]]
+                        mu += self._mu[inbound_panels[0]]
+                        mu -= self._mu[inbound_panels[1]]
 
                     # Print out
-                    for i in range(filament.N):
+                    for i in range(self._mesh.wake.N_segments):
                         print("{0:<20.12}".format(mu), file=export_handle)
 
                 for mu in self._mu:
@@ -131,27 +129,24 @@ class Solver:
             # Velocity
             if hasattr(self, "_v"):
                 print("VECTORS velocity float", file=export_handle)
-                for filament in self._mesh.wake.filaments:
-                    for i in range(filament.N):
-                        print("0.0 0.0 0.0", file=export_handle)
+                for i in range(N_segments):
+                    print("0.0 0.0 0.0", file=export_handle)
                 for v in self._v:
                     print("{0:<20.12} {1:<20.12} {2:<20.12}".format(v[0], v[1], v[2]), file=export_handle)
 
                 # Normal velocity
                 print("SCALARS normal_velocity float", file=export_handle)
                 print("LOOKUP_TABLE default", file=export_handle)
-                for filament in self._mesh.wake.filaments:
-                    for i in range(filament.N):
-                        print("0.0", file=export_handle)
+                for i in range(N_segments):
+                    print("0.0", file=export_handle)
                 for v_n in vec_inner(self._v, self._mesh.n):
                     print("{0:<20.12}".format(v_n), file=export_handle)
 
             # Gradient of potential
             if hasattr(self, "_grad_mu"):
                 print("VECTORS doublet_gradient float", file=export_handle)
-                for filament in self._mesh.wake.filaments:
-                    for i in range(filament.N):
-                        print("0.0 0.0 0.0", file=export_handle)
+                for i in range(N_segments):
+                    print("0.0 0.0 0.0", file=export_handle)
                 for grad_mu in self._grad_mu:
                     print("{0:<20.12} {1:<20.12} {2:<20.12}".format(grad_mu[0], grad_mu[1], grad_mu[2]), file=export_handle)
 

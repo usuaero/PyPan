@@ -5,7 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, cross
 from pypan.helpers import OneLineProgress
-from pypan.filaments import SegmentedVortexFilament, StraightVortexFilament
+from pypan.filaments import SegmentedVortexFilament
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -124,11 +124,10 @@ class NonIterativeWake(Wake):
         super().__init__(**kwargs)
 
         # Store type
-        self.is_iterative = False
         self._type = kwargs.get("type", "freestream")
 
         # Initialize filaments
-        self._vertices, self._inbound_panels, self._outbound_panels = self._arrange_kutta_vertices()
+        self._vertices, self.inbound_panels, self.outbound_panels = self._arrange_kutta_vertices()
 
         # Store number of filaments and segments
         self.N = len(self._vertices)
@@ -184,13 +183,13 @@ class NonIterativeWake(Wake):
         # Freestream with rotation
         elif self._type=="freestream_and_rotation":
             self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
-            self.filament_dirs /= vec_norm(self.filament_dirs)
+            self.filament_dirs /= vec_norm(self.filament_dirs)[:,np.newaxis]
 
         # Freestream with rotation constrained
         elif self._type=="freestream_and_rotation_constrained":
             self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
             self.filament_dirs = np.einsum('ij,kj->ki', self._P, self.filament_dirs)
-            self.filament_dirs /= vec_norm(self.filament_dirs)
+            self.filament_dirs /= vec_norm(self.filament_dirs)[:,np.newaxis]
 
 
     def get_influence_matrix(self, **kwargs):
@@ -245,13 +244,13 @@ class NonIterativeWake(Wake):
         for i in range(self.N):
 
             # Add for outbound panels
-            outbound_panels = self._outbound_panels[i]
+            outbound_panels = self.outbound_panels[i]
             if len(outbound_panels)>0:
                 vortex_influence_matrix[:,outbound_panels[0],:] -= V[:,i,:]
                 vortex_influence_matrix[:,outbound_panels[1],:] += V[:,i,:]
 
             # Add for inbound panels
-            inbound_panels = self._inbound_panels[i]
+            inbound_panels = self.inbound_panels[i]
             if len(inbound_panels)>0:
                 vortex_influence_matrix[:,inbound_panels[0],:] += V[:,i,:]
                 vortex_influence_matrix[:,inbound_panels[1],:] -= V[:,i,:]
@@ -315,9 +314,6 @@ class IterativeWake(Wake):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # Store type
-        self.is_iterative = True
 
         # Get kwargs
         self.l = kwargs.get('segment_length', 1.0)
