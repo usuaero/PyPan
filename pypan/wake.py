@@ -5,6 +5,7 @@ import numpy as np
 from abc import abstractmethod
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, cross
 from pypan.helpers import OneLineProgress
+from pypan.filaments import SegmentedVortexFilament, StraightVortexFilament
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -127,23 +128,23 @@ class NonIterativeWake(Wake):
         self._type = kwargs.get("type", "freestream")
 
         # Initialize filaments
-        self.filaments = []
-        vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
-        for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
-            self.filaments.append(FixedVortexFilament(vertex, ip, op))
+        self._vertices, self._inbound_panels, self._outbound_panels = self._arrange_kutta_vertices()
 
-        # Store number of filaments
-        self.N = len(self.filaments)
+        # Store number of filaments and segments
+        self.N = len(self._vertices)
+        self.N_segments = 1
+
+        # Initialize filament directions
+        self.filament_dirs = np.zeros((self.N, 3))
 
         # Get direction for custom wake
         if self._type=="custom":
             try:
-                self.dir = np.array(kwargs.get("dir"))
-                self.dir /= norm(self.dir)
-                for filament in self.filaments:
-                    filament.set_dir(self.dir)
+                u = np.array(kwargs.get("dir"))
+                u /= norm(u)
+                self.filament_dirs[:] = u
             except:
-                raise IOError("'dir' is required for wake type 'fixed'.")
+                raise IOError("'dir' is required for non-iterative wake type 'custom'.")
 
         # Get normal direction for constrained wake
         if "constrained" in self._type:
@@ -172,36 +173,28 @@ class NonIterativeWake(Wake):
         # Freestream direction
         if self._type=="freestream":
             u = v_inf/norm(v_inf)
-            for filament in self.filaments:
-                filament.set_dir(u)
+            self.filament_dirs[:] = u
 
         # Freestream constrained
         elif self._type=="freestream_constrained":
             u = np.einsum('ij,j', self._P, v_inf)
             u /= norm(u)
-            for filament in self.filaments:
-                filament.set_dir(u)
+            self.filament_dirs[:] = u
 
         # Freestream with rotation
         elif self._type=="freestream_and_rotation":
-            for filament in self.filaments:
-                u = v_inf-cross(omega, filament.p0)
-                u /= norm(u)
-                filament.set_dir(u)
+            self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
+            self.filament_dirs /= vec_norm(self.filament_dirs)
 
         # Freestream with rotation constrained
         elif self._type=="freestream_and_rotation_constrained":
-            for filament in self.filaments:
-                u = v_inf-cross(omega, filament.p0)
-                u = np.einsum('ij,j', self._P, u)
-                u /= norm(u)
-                filament.set_dir(u)
+            self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
+            self.filament_dirs = np.einsum('ij,kj->ki', self._P, self.filament_dirs)
+            self.filament_dirs /= vec_norm(self.filament_dirs)
 
 
     def get_influence_matrix(self, **kwargs):
-        """Create wake influence matrix; first index is the influenced panels
-        (bordering the horseshoe vortex), second is the influencing panel, third is the 
-        velocity component.
+        """Create wake influence matrix; first index is the influenced panels, second is the influencing panel, third is the velocity component.
 
         Parameters
         ----------
@@ -243,23 +236,25 @@ class NonIterativeWake(Wake):
             vortex_influence_matrix[:,p_ind[0]] = -V
             vortex_influence_matrix[:,p_ind[1]] = V
 
-        # Get influence of filaments
-        for filament in self.filaments:
+        # Determine displacement vector magnitudes
+        r = points[:,np.newaxis,:]-self._vertices[np.newaxis,:,:]
+        r_mag = vec_norm(r)
 
-            # Get influence
-            V = filament.get_influence(points)
+        # Calculate influences
+        V = 0.25/np.pi*vec_cross(self.filament_dirs[np.newaxis,:,:], r)/(r_mag*(r_mag-vec_inner(self.filament_dirs[np.newaxis,:,:], r)))[:,:,np.newaxis]
+        for i in range(self.N):
 
             # Add for outbound panels
-            outbound_panels = filament.outbound_panels
+            outbound_panels = self._outbound_panels[i]
             if len(outbound_panels)>0:
-                vortex_influence_matrix[:,filament.outbound_panels[0]] -= V
-                vortex_influence_matrix[:,filament.outbound_panels[1]] += V
+                vortex_influence_matrix[:,outbound_panels[0],:] -= V[:,i,:]
+                vortex_influence_matrix[:,outbound_panels[1],:] += V[:,i,:]
 
             # Add for inbound panels
-            inbound_panels = filament.inbound_panels
+            inbound_panels = self._inbound_panels[i]
             if len(inbound_panels)>0:
-                vortex_influence_matrix[:,filament.inbound_panels[0]] += V
-                vortex_influence_matrix[:,filament.inbound_panels[1]] -= V
+                vortex_influence_matrix[:,inbound_panels[0],:] += V[:,i,:]
+                vortex_influence_matrix[:,inbound_panels[1],:] -= V[:,i,:]
         
         return vortex_influence_matrix
 
@@ -282,11 +277,11 @@ class NonIterativeWake(Wake):
 
         # Loop through filaments
         i = 0
-        for filament in self.filaments:
+        for j in range(self.N):
 
             # Add vertices
-            vertices.append(filament.p0)
-            vertices.append(filament.p0+l*filament.dir)
+            vertices.append(self._vertices[j])
+            vertices.append(self._vertices[j]+l*self.filament_dirs[j])
 
             # Add indices
             line_vertex_indices.append([2, i, i+1])
@@ -295,60 +290,6 @@ class NonIterativeWake(Wake):
             i += 2
 
         return vertices, line_vertex_indices, self.N
-
-
-class FixedVortexFilament:
-    """Defines a straight, semi-infinite vortex filament.
-
-    Parameters
-    ----------
-    origin : ndarray
-        Origin point of the filament.
-
-    inbound_panels : list
-        Indices of the two panels for which this is an inbound filament.
-
-    outbound_panels : list
-        Indices of the two panels for which this is an outbound filament.
-    """
-
-    def __init__(self, origin, inbound_panels, outbound_panels):
-
-        # Store info
-        self.p0 = origin
-        self.inbound_panels = inbound_panels
-        self.outbound_panels = outbound_panels
-        self.N = 1
-
-
-    def set_dir(self, direction):
-        """Sets the direction of the filament.
-
-        Parameters
-        ----------
-        direction : ndarray
-            Direction of the vortex filament.
-        """
-
-        # Store direction
-        self.dir = direction
-
-
-    def get_influence(self, points):
-        """Determines the influence of this vortex filament on the specified points.
-
-        Parameters
-        ----------
-        points : ndarray
-            Points at which to calculate the influence.
-        """
-
-        # Determine displacement vector magnitudes
-        r = points-self.p0[np.newaxis,:]
-        r_mag = vec_norm(r)
-
-        # Calculate influence
-        return 0.25/np.pi*vec_cross(self.dir, r)/(r_mag*(r_mag-vec_inner(self.dir, r)))[:,np.newaxis]
 
 
 class IterativeWake(Wake):
@@ -387,7 +328,7 @@ class IterativeWake(Wake):
         self.filaments = []
         vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
         for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
-            self.filaments.append(StreamlineVortexFilament(vertex, ip, op, **kwargs))
+            self.filaments.append(SegmentedVortexFilament(vertex, ip, op, **kwargs))
 
         # Store number of filaments
         self.N = len(self.filaments)
@@ -628,158 +569,3 @@ class IterativeWake(Wake):
             v_ind += v*mu[p_ind[1]]
 
         return v_ind
-
-
-class StreamlineVortexFilament:
-    """Defines a semi-infinite vortex filament which follows a streamline.
-
-    Parameters
-    ----------
-    origin : ndarray
-        Origin point of the filament.
-
-    inbound_panels : list
-        Indices of the two panels for which this is an inbound filament.
-
-    outbound_panels : list
-        Indices of the two panels for which this is an outbound filament.
-
-    N_segments : int, optional
-        Number of segments to use for the filament. Defaults to 20.
-
-    segment_length : float, optional
-        Length of each discrete filament segment. Defaults to 1.0.
-
-    end_segment_infinite : bool, optional
-        Whether the final segment of the filament should be treated as infinite. Defaults to False.
-    """
-
-    def __init__(self, origin, inbound_panels, outbound_panels, **kwargs):
-
-        # Store info
-        self.p0 = origin
-        self.inbound_panels = inbound_panels
-        self.outbound_panels = outbound_panels
-        self.N = kwargs.get("N_segments", 20)
-        self.l = kwargs.get("segment_length", 1.0)
-        self.end_inf = kwargs.get("end_segment_infinite", False)
-
-
-    def initialize_points(self, direction):
-        """Initializes the points making up this filament. Includes the origin point.
-
-        Parameters
-        ----------
-        direction : ndarray
-            Direction of the vortex filament.
-        """
-
-        # Store direction
-        self.dir = direction
-
-        # Initialize points
-        self.points = self.p0[np.newaxis,:]+self.l*np.linspace(0.0, self.N*self.l, self.N+1)[:,np.newaxis]*self.dir[np.newaxis,:]
-
-
-    def get_influence(self, points):
-        """Determines the influence of this vortex filament on the specified points.
-
-        Parameters
-        ----------
-        points : ndarray
-            Points at which to calculate the influence.
-        """
-
-        # Determine displacement vectors
-        if self.end_inf:
-            r0 = points[:,np.newaxis,:]-self.points[np.newaxis,:-2,:]
-            r1 = points[:,np.newaxis,:]-self.points[np.newaxis,1:-1,:]
-        else:
-            r0 = points[:,np.newaxis,:]-self.points[np.newaxis,:-1,:]
-            r1 = points[:,np.newaxis,:]-self.points[np.newaxis,1:,:]
-
-        # Determine displacement vector magnitudes
-        r0_mag = vec_norm(r0)
-        r1_mag = vec_norm(r1)
-
-        # Calculate influence of each segment
-        inf = np.sum(((r0_mag+r1_mag)/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,:,np.newaxis]*vec_cross(r0, r1), axis=1)
-
-        # Add influence of last segment, if needed
-        if self.end_inf:
-
-            # Determine displacement vector magnitudes
-            r = r1[:,-1,:]
-            r_mag = vec_norm(r)
-            u = self.points[-1]-self.points[-2]
-            u /= norm(u)
-
-            # Calculate influence
-            inf += vec_cross(u, r)/(r_mag*(r_mag-vec_inner(u, r)))[:,np.newaxis]
-
-        return 0.25/np.pi*inf
-
-
-class KuttaEdge:
-    """A class for defining an edge segment at which the Kutta condition is applied.
-
-    Parameters
-    ----------
-    v0 : ndarray
-        Start vertex.
-
-    v1 : ndarray
-        End vertex.
-
-    panel_indices : list
-        Indices (within the mesh) of the panels neighboring this edge.
-    """
-
-    def __init__(self, v0, v1, panel_indices):
-
-        # Store
-        self.vertices = np.zeros((2, 3))
-        self.vertices[0] = v0
-        self.vertices[1] = v1
-        self.panel_indices = panel_indices
-
-
-    def __str__(self):
-        s = "E "+" ".join(["{:<20}"]*6)+" {} {}"
-        s = s.format(self.vertices[0,0],
-                     self.vertices[0,1],
-                     self.vertices[0,2],
-                     self.vertices[1,0],
-                     self.vertices[1,1],
-                     self.vertices[1,2],
-                     self.panel_indices[0],
-                     self.panel_indices[1])
-        return s
-
-
-    def get_vortex_influence(self, points):
-        """Determines the velocity vector induced by this edge at arbitrary
-        points, assuming a horseshoe vortex is shed from this edge.
-
-        Parameters
-        ----------
-        points : ndarray
-            An array of points where the first index is the point index and 
-            the second index is the coordinate.
-
-        Returns
-        -------
-        ndarray
-            The velocity vector induced at each point.
-        """
-
-        # Determine displacement vectors
-        r0 = points-self.vertices[0,:]
-        r1 = points-self.vertices[1,:]
-
-        # Determine displacement vector magnitudes
-        r0_mag = vec_norm(r0)
-        r1_mag = vec_norm(r1)
-
-        # Calculate influence of bound segment
-        return 0.25*((r0_mag+r1_mag)/(np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,np.newaxis]*vec_cross(r0, r1)

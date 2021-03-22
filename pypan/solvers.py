@@ -85,9 +85,9 @@ class Solver:
 
             # Normals
             print("NORMALS panel_normals float", file=export_handle)
-            for filament in self._mesh.wake.filaments:
-                for i in range(filament.N):
-                    print("{0:<20.12} {1:<20.12} {2:<20.12}".format(*filament.dir), file=export_handle)
+            for i in range(self._mesh.wake.N):
+                for j in range(self._mesh.wake.N_segments):
+                    print("{0:<20.12} {1:<20.12} {2:<20.12}".format(0.0, 0.0, 0.0), file=export_handle)
             for n in self._mesh.n:
                 print("{0:<20.12} {1:<20.12} {2:<20.12}".format(n[0], n[1], n[2]), file=export_handle)
 

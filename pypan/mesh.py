@@ -12,7 +12,8 @@ from mpl_toolkits.mplot3d import Axes3D
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
-from pypan.wake import Wake, NonIterativeWake, KuttaEdge, IterativeWake
+from pypan.wake import Wake, NonIterativeWake, IterativeWake
+from pypan.kutta_edges import KuttaEdge
 
 
 class Mesh:
