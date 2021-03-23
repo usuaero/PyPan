@@ -41,16 +41,16 @@ if __name__=="__main__":
 
     # Plot mesh
     #my_mesh.plot(centroids=False)
-    my_mesh.set_fixed_wake(end_segment_infinite=True, segment_length=0.5, N_segments=50, type="freestream_and_rotation")
+    my_mesh.set_iterative_wake(end_segment_infinite=True, segment_length=0.5, N_segments=50, type="freestream_and_rotation")
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[2.0, 0.0, 2.0])
 
     # Solve
-    F, M = my_solver.solve(verbose=True, wake_iterations=3)
+    F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series")
     print()
     print("F: ", F)
     print("M: ", M)

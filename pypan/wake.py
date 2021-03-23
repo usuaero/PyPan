@@ -203,12 +203,6 @@ class NonIterativeWake(Wake):
         N_panels : int
             Number of panels in the mesh to which this wake belongs.
 
-        u_inf : ndarray
-            Freestream direction vector.
-        
-        omega : ndarray
-            Body-fixed rotation rates.
-
         Returns
         -------
         ndarray
@@ -309,7 +303,7 @@ class IterativeWake(Wake):
         Whether the final segment of the filament should be treated as infinite. Defaults to False.
 
     corrector_iterations : int, optional
-        How many times to correct the streamline prediction at each step. Defaults to 1.
+        How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1.
     """
 
     def __init__(self, **kwargs):
@@ -319,15 +313,18 @@ class IterativeWake(Wake):
         self.l = kwargs.get('segment_length', 1.0)
         self.N_segments = kwargs.get('N_segments', 20)
         self._corrector_iterations = kwargs.get('corrector_iterations', 1)
+        self._end_infinite = kwargs.get("end_segment_infinite", False)
 
         # Initialize filaments
         self.filaments = []
-        vertices, inbound_panels, outbound_panels = self._arrange_kutta_vertices()
-        for vertex, ip, op in zip(vertices, inbound_panels, outbound_panels):
+        vertices, self.inbound_panels, self.outbound_panels = self._arrange_kutta_vertices()
+        for vertex, ip, op in zip(vertices, self.inbound_panels, self.outbound_panels):
             self.filaments.append(SegmentedVortexFilament(vertex, ip, op, **kwargs))
 
-        # Store number of filaments
-        self.N = len(self.filaments)
+        # Initialize filament points
+        self.N = vertices.shape[0]
+        self._vertices = np.zeros((self.N, self.N_segments, 3))
+        self._vertices[:,0,:] = vertices
 
 
     def set_filament_direction(self, v_inf, omega):
@@ -342,11 +339,13 @@ class IterativeWake(Wake):
             Angular rate vector.
         """
 
-        # Freestream with rotation
-        for filament in self.filaments:
-            u = v_inf-cross(omega, filament.p0)
-            u /= norm(u)
-            filament.initialize_points(u)
+        # Determine directions
+        origins = self._vertices[:,0,:]
+        self._filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, origins)
+        self._filament_dirs /= vec_norm(self._filament_dirs)[:,np.newaxis]
+
+        # Set vertices
+        self._vertices = origins[:,np.newaxis,:]+np.linspace(0.0, self.N_segments*self.l, self.N_segments+1)[np.newaxis,:,np.newaxis]*self._filament_dirs[:,np.newaxis,:]
 
 
     def get_vtk_data(self, **kwargs):
@@ -355,11 +354,11 @@ class IterativeWake(Wake):
         Parameters
         ----------
         length : float, optional
-            Length of the final filament segment, if set as infinite.
+            Length of the final filament segment, if set as infinite. Defaults to 20 times the filament segment length.
         """
 
         # Get kwargs
-        l = kwargs.get("length", 5.0)
+        l = kwargs.get("length", 20.0*self.l)
 
         # Initialize storage
         vertices = []
@@ -367,32 +366,30 @@ class IterativeWake(Wake):
 
         # Loop through filaments
         i = 0
-        for filament in self.filaments:
+        for j in range(self.N):
 
             # Add vertices
-            for j, vertex in enumerate(filament.points):
-                vertices.append(vertex)
+            for k in range(self.N_segments+1):
+                vertices.append(self._vertices[j,k])
 
                 # Add indices
-                if j!=len(filament.points)-1:
-                    line_vertex_indices.append([2, i+j, i+j+1])
+                if k != self.N_segments:
+                    line_vertex_indices.append([2, i+k, i+k+1])
 
             # Treat infinite end segment
-            if filament.end_inf:
+            if self._end_infinite:
                 u = vertices[-1]-vertices[-2]
                 u /= norm(u)
                 vertices[-1] = vertices[-2]+u*l
 
             # Increment index
-            i += filament.points.shape[0]
+            i += self.N_segments+1
 
-        return vertices, line_vertex_indices, self.N*self.filaments[0].N
+        return vertices, line_vertex_indices, self.N*self.N_segments
 
 
     def get_influence_matrix(self, **kwargs):
-        """Create wake influence matrix; first index is the influenced panels
-        (bordering the horseshoe vortex), second is the influencing panel, third is the 
-        velocity component.
+        """Create wake influence matrix; first index is the influenced points, second is the influencing panel, third is the velocity component.
 
         Parameters
         ----------
@@ -401,12 +398,6 @@ class IterativeWake(Wake):
 
         N_panels : int
             Number of panels in the mesh to which this wake belongs.
-
-        u_inf : ndarray
-            Freestream direction vector.
-        
-        omega : ndarray
-            Body-fixed rotation rates.
 
         Returns
         -------
@@ -435,24 +426,55 @@ class IterativeWake(Wake):
             vortex_influence_matrix[:,p_ind[1]] = V
 
         # Get influence of filaments
-        for filament in self.filaments:
-
-            # Get influence
-            V = filament.get_influence(points)
+        V = self._get_filament_influences(points)
+        for i in range(self.N):
 
             # Add for outbound panels
-            outbound_panels = filament.outbound_panels
+            outbound_panels = self.outbound_panels[i]
             if len(outbound_panels)>0:
-                vortex_influence_matrix[:,outbound_panels[0]] -= V
-                vortex_influence_matrix[:,outbound_panels[1]] += V
+                vortex_influence_matrix[:,outbound_panels[0]] -= V[:,i]
+                vortex_influence_matrix[:,outbound_panels[1]] += V[:,i]
 
             # Add for inbound panels
-            inbound_panels = filament.inbound_panels
+            inbound_panels = self.inbound_panels[i]
             if len(inbound_panels)>0:
-                vortex_influence_matrix[:,inbound_panels[0]] += V
-                vortex_influence_matrix[:,inbound_panels[1]] -= V
+                vortex_influence_matrix[:,inbound_panels[0]] += V[:,i]
+                vortex_influence_matrix[:,inbound_panels[1]] -= V[:,i]
         
         return vortex_influence_matrix
+
+
+    def _get_filament_influences(self, points):
+        # Determines the unit vortex influence from the wake filaments on the given points
+
+        # Determine displacement vectors: first index is point, second is filament, third is segment, fourth is vector component
+        if self._end_infinite:
+            r0 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,:-2,:] # Don't add the last segment at this point
+            r1 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,1:-1,:]
+        else:
+            r0 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,:-1,:]
+            r1 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,1:,:]
+
+        # Determine displacement vector magnitudes
+        r0_mag = vec_norm(r0)
+        r1_mag = vec_norm(r1)
+
+        # Calculate influence of each segment
+        inf = np.sum(((r0_mag+r1_mag)/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,:,:,np.newaxis]*vec_cross(r0, r1), axis=2)
+
+        # Add influence of last segment, if needed
+        if self._end_infinite:
+
+            # Determine displacement vector magnitudes
+            r = r1[:,:,-1,:]
+            r_mag = vec_norm(r)
+            u = self._vertices[:,-1,:]-self._vertices[:,-2,:]
+            u /= vec_norm(u)[:,np.newaxis]
+
+            # Calculate influence
+            inf += vec_cross(u[np.newaxis,:,:], r)/(r_mag*(r_mag-vec_inner(u[np.newaxis,:,:], r)))[:,:,np.newaxis]
+
+        return 0.25/np.pi*inf
 
 
     def update(self, velocity_from_body, mu, v_inf, omega, verbose):
@@ -483,9 +505,7 @@ class IterativeWake(Wake):
         new_locs = np.zeros((self.N, self.N_segments, 3))
 
         # Get starting locations (offset slightly from origin to avoid singularities)
-        curr_loc = np.zeros((self.N, 3))
-        for i, filament in enumerate(self.filaments):
-            curr_loc[i] = filament.p0+filament.dir*0.01
+        curr_loc = self._vertices[:,0,:]+self._filament_dirs*0.01
         
         if verbose: prog.display()
 
@@ -519,37 +539,37 @@ class IterativeWake(Wake):
 
             if verbose: prog.display()
 
-        # Store the new locations in the filaments.
-        for i, filament in enumerate(self.filaments):
-            filament.points[1:] = new_locs[i]
+        # Store the new locations
+        self._vertices[:,1:,:] = new_locs
 
 
     def _get_velocity_from_other_filaments_and_edges(self, points, mu):
-        # Determines the velocity at each point (assumed to be on a filament) induced by all other filaments and Kutta edges
+        # Determines the velocity at each point (assumed to be one on each filament in order) induced by all other filaments and Kutta edges
 
         # Initialize storage
-        v_ind = np.zeros((points.shape[0], 3))
+        v_ind = np.zeros((self.N, 3))
 
-        # Loop through points
-        for i, filament in enumerate(self.filaments):
+        # Get filament influences
+        with np.errstate(divide='ignore', invalid='ignore'):
+            V = self._get_filament_influences(points) # On the first segment of the first iteration, this will throw warnings because the initial point is on the filament; these can safely be ignored
+
+        # Loop through filaments
+        for i in range(self.N):
 
             # Get indices of points not belonging to this filament
             ind = [j for j in range(self.N) if j!=i]
 
-            # Get influence vector
-            v = filament.get_influence(points[ind])
-
             # Add for outbound panels
-            outbound_panels = filament.outbound_panels
+            outbound_panels = self.outbound_panels[i]
             if len(outbound_panels)>0:
-                v_ind[ind] -= v*mu[outbound_panels[0]]
-                v_ind[ind] += v*mu[outbound_panels[1]]
+                v_ind[ind] -= V[ind,i]*mu[outbound_panels[0]]
+                v_ind[ind] += V[ind,i]*mu[outbound_panels[1]]
 
             # Add for inbound panels
-            inbound_panels = filament.inbound_panels
+            inbound_panels = self.inbound_panels[i]
             if len(inbound_panels)>0:
-                v_ind[ind] += v*mu[inbound_panels[0]]
-                v_ind[ind] -= v*mu[inbound_panels[1]]
+                v_ind[ind] += V[ind,i]*mu[inbound_panels[0]]
+                v_ind[ind] -= V[ind,i]*mu[inbound_panels[1]]
 
         # Get influence of edges
         for edge in self._kutta_edges:

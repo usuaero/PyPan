@@ -82,7 +82,13 @@ class VortexRingSolver(Solver):
             Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
-            How many times the shape of the wake should be iterated on. This will only be used if the mesh has been set with an iterative wake. On the first iteration, the wake shape is assumed to be simply in the direction of the freestream. Thus, if the effects of wake rollup are to be observed, at least 2 wake iterations must be allowed. Defaults to 3.
+            How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with an iterative wake. The flow is first solved with a wake in the direction of the freestream. Defaults to 2.
+
+        export_wake_series : bool, optional
+            Whether to export a vtk of the solver results after each wake iteration. Only used if the mesh has been set with an iterative wake. Defaults to False.
+
+        wake_series_title : str, optional
+            Gives a common file name and location for the wake series export files. Each file will be stored as "<wake_series_title>_<iteration_number>.vtk". May include a file path. Required if "export_wake_series" is True.
 
         verbose : bool, optional
 
@@ -100,13 +106,20 @@ class VortexRingSolver(Solver):
 
         # Get kwargs
         method = kwargs.get("method", "direct")
-        wake_iterations = kwargs.get("wake_iterations", 3)
         dont_iterate_on_wake = not isinstance(self._mesh.wake, IterativeWake)
         if dont_iterate_on_wake:
-            wake_iterations = 1
+            wake_iterations = 0
+            export_wake_series = False
+        else:
+            wake_iterations = kwargs.get("wake_iterations", 2)
+            export_wake_series = kwargs.get("export_wake_series", False)
+            if export_wake_series:
+                wake_series_title = kwargs.get("wake_series_title")
+                if wake_series_title is None:
+                    raise IOError("'wake_series_title' is required if 'export_wake_series' is true.")
 
         # Iterate on wake
-        for i in range(wake_iterations):
+        for i in range(wake_iterations+1):
             if self._verbose and not dont_iterate_on_wake:
                 print("\nWake Iteration {0}".format(i+1))
                 print("====================")
@@ -147,6 +160,7 @@ class VortexRingSolver(Solver):
                 try:
                     print("        Maximum residual magnitude: {0}".format(np.max(np.abs(res))))
                     print("        Average residual magnitude: {0}".format(np.average(np.abs(res))))
+                    print("        Median residual magnitude: {0}".format(np.median(np.abs(res))))
                 except:
                     pass
 
@@ -157,7 +171,7 @@ class VortexRingSolver(Solver):
 
             if self._verbose:
                 print()
-                prog = OneLineProgress(7, msg="    Calculating derived quantities")
+                prog = OneLineProgress(4, msg="    Calculating derived quantities")
 
             # Determine velocities at each control point induced by panels
             self._v = self._v_inf_and_rot+np.einsum('ijk,j', self._panel_influence_matrix, self._mu)
@@ -177,30 +191,34 @@ class VortexRingSolver(Solver):
             self._C_P = 1.0-(self._V*self._V)/self._V_inf_2
             if self._verbose: prog.display()
 
-            # Determine force acting on each panel
-            self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
-            if self._verbose: prog.display()
-
-            # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
-            self._F = np.zeros(3)
-            self._F[0] = np.sum(self._dF[:,0])
-            self._F[1] = np.sum(self._dF[:,1])
-            self._F[2] = np.sum(self._dF[:,2])
-            if self._verbose: prog.display()
-
-            # Determine moment contribution due to each panel
-            self._dM = vec_cross(self._mesh.r_CG, self._dF)
-
-            # Sum moment components
-            self._M = np.zeros(3)
-            self._M[0] = np.sum(self._dM[:,0])
-            self._M[1] = np.sum(self._dM[:,1])
-            self._M[2] = np.sum(self._dM[:,2])
-            if self._verbose: prog.display()
+            # export vtk
+            if export_wake_series:
+                self.export_vtk(wake_series_title+"_{0}.vtk".format(i+1))
 
             # Update wake
-            if not dont_iterate_on_wake:
+            if not dont_iterate_on_wake and i < wake_iterations: # Don't update the wake if this is the last iteration
                 self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu, self._v_inf, self._omega, self._verbose)
+
+        # Determine force acting on each panel
+        self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
+        if self._verbose: prog.display()
+
+        # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
+        self._F = np.zeros(3)
+        self._F[0] = np.sum(self._dF[:,0])
+        self._F[1] = np.sum(self._dF[:,1])
+        self._F[2] = np.sum(self._dF[:,2])
+        if self._verbose: prog.display()
+
+        # Determine moment contribution due to each panel
+        self._dM = vec_cross(self._mesh.r_CG, self._dF)
+
+        # Sum moment components
+        self._M = np.zeros(3)
+        self._M[0] = np.sum(self._dM[:,0])
+        self._M[1] = np.sum(self._dM[:,1])
+        self._M[2] = np.sum(self._dM[:,2])
+        if self._verbose: prog.display()
 
         # Set solved flag
         self._solved = True
