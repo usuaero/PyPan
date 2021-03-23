@@ -109,6 +109,9 @@ class Panel(BasePanel):
 
     v3 : list, optional
         Fourth corner vertex. May be omitted for triangular panel.
+    
+    edges : list of int, optional
+        Edge number(s) to which this panel belongs. Defaults to 0 (does not belong to an edge).
 
     tol : float, optional
         Tolerance for determining if two points are collapsed onto each other.
@@ -126,6 +129,9 @@ class Panel(BasePanel):
         self.vertices[1] = kwargs.get("v1")
         self.vertices[2] = kwargs.get("v2")
         self.vertices[3] = kwargs.get("v3", self.vertices[2]) # Will get removed by _check_collapsed_vertices()
+
+        # Store edge number
+        self.edge = kwargs.get("edge", [0])
 
         # Determine if this is a projected panel
         self._projected = kwargs.get("projected", False)

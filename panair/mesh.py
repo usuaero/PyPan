@@ -95,6 +95,9 @@ class Mesh:
             for i in range(len(self._networks)):
                 self._networks.append(self._networks[i].mirror('xy'))
 
+        # Set gap tolerance
+        self._tol = 1e-6
+
 
     def plot(self):
         """Plots the PAN AIR mesh in 3D.
@@ -105,11 +108,10 @@ class Mesh:
 
         # Arbitrary colors for each type of network
         colors = {
-            11 : "#0000FF",
+            11 : "#0000FF", # Impermeable (zero mass-flux) upper surface
             18 : "#FF0000",
-            20 : "#00FF00",
-            5 : "#AA00AA",
-            1 : "#000000"
+            20 : "#00FF00", # Zero normal velocity upper surface
+            5 : "#AA00AA"
         }
 
         # Set up plot

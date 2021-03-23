@@ -22,7 +22,19 @@ class Network:
         Array of vertices defining this network.
 
     type_code : float
-        Number code for the type of network this is.
+        Number code for the type of network this is. The network type determines what boundary conditions are to be imposed on the surface of the network.
+
+        The first digit specifies the class of boundary condition. The second digit specifies the subclass. These are as follows
+
+        Class 1: Impermeable analysis
+
+            Subclasses:
+
+                1 : Zero mass-flux imposed on upper surface of network.
+                2 : Zero mass-flux imposed on lower surface of network.
+                3 : Zero mass-flux imposed on average surface.
+                4 : Wake network placed behind lifting surfaces or wake networks of the same type.
+                5 : Wake network used to obtain wake continuity.
     """
 
     def __init__(self, **kwargs):
@@ -69,13 +81,31 @@ class Network:
         self.panels = np.empty((self.n_rows, self.n_cols), dtype=Panel)
         for i in range(self.n_rows):
             for j in range(self.n_cols):
+
+                # Determine edge
+                edge = []
+                if j==0:
+                    edge.append(4)
+                if i==0:
+                    edge.append(1)
+                if j==self.n_cols-1:
+                    edge.append(2)
+                if i==self.n_rows-1:
+                    edge.append(3)
                 
                 # Vertices are stored going down the columns first (huh, who would've thought with FORTRAN)
                 # Order of the panel vertices determines panel orientation
-                self.panels[i,j] = Panel(v0=self.vertices[j*(self.n_rows+1)+i],
-                                         v1=self.vertices[(j+1)*(self.n_rows+1)+i],
-                                         v2=self.vertices[(j+1)*(self.n_rows+1)+i+1],
-                                         v3=self.vertices[j*(self.n_rows+1)+i+1])
+                if len(edge) != 0:
+                    self.panels[i,j] = Panel(v0=self.vertices[j*(self.n_rows+1)+i],
+                                             v1=self.vertices[(j+1)*(self.n_rows+1)+i],
+                                             v2=self.vertices[(j+1)*(self.n_rows+1)+i+1],
+                                             v3=self.vertices[j*(self.n_rows+1)+i+1],
+                                             edge=edge)
+                else:
+                    self.panels[i,j] = Panel(v0=self.vertices[j*(self.n_rows+1)+i],
+                                             v1=self.vertices[(j+1)*(self.n_rows+1)+i],
+                                             v2=self.vertices[(j+1)*(self.n_rows+1)+i+1],
+                                             v3=self.vertices[j*(self.n_rows+1)+i+1])
 
 
     def _parse_from_panels(self, panels, vertices):
