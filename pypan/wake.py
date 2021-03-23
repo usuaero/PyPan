@@ -5,7 +5,6 @@ import numpy as np
 from abc import abstractmethod
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, cross
 from pypan.helpers import OneLineProgress
-from pypan.filaments import SegmentedVortexFilament
 
 class Wake:
     """A base class for wake models in PyPan. This class can be used as a dummy class for there being no wake.
@@ -102,7 +101,7 @@ class Wake:
         pass
 
 
-class NonIterativeWake(Wake):
+class StraightFixedWake(Wake):
     """Defines a non-iterative wake consisting of straight, semi-infinite vortex filaments.
 
     Parameters
@@ -285,8 +284,8 @@ class NonIterativeWake(Wake):
         return vertices, line_vertex_indices, self.N
 
 
-class IterativeWake(Wake):
-    """Defines an iterative wake consisting of segmented semi-infinite vortex filaments. Will initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation.
+class SegmentedWake(Wake):
+    """Defines a wake consisting of segmented semi-infinite vortex filaments. Vortex filaments will initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation.
 
     Parameters
     ----------
@@ -301,10 +300,8 @@ class IterativeWake(Wake):
 
     end_segment_infinite : bool, optional
         Whether the final segment of the filament should be treated as infinite. Defaults to False.
-
-    corrector_iterations : int, optional
-        How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1.
     """
+
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -312,14 +309,10 @@ class IterativeWake(Wake):
         # Get kwargs
         self.l = kwargs.get('segment_length', 1.0)
         self.N_segments = kwargs.get('N_segments', 20)
-        self._corrector_iterations = kwargs.get('corrector_iterations', 1)
         self._end_infinite = kwargs.get("end_segment_infinite", False)
 
         # Initialize filaments
-        self.filaments = []
         vertices, self.inbound_panels, self.outbound_panels = self._arrange_kutta_vertices()
-        for vertex, ip, op in zip(vertices, self.inbound_panels, self.outbound_panels):
-            self.filaments.append(SegmentedVortexFilament(vertex, ip, op, **kwargs))
 
         # Initialize filament points
         self.N = vertices.shape[0]
@@ -474,7 +467,35 @@ class IterativeWake(Wake):
             # Calculate influence
             inf += vec_cross(u[np.newaxis,:,:], r)/(r_mag*(r_mag-vec_inner(u[np.newaxis,:,:], r)))[:,:,np.newaxis]
 
-        return 0.25/np.pi*inf
+        return 0.25/np.pi*np.nan_to_num(inf)
+
+
+class FullStreamlineWake(SegmentedWake):
+    """Defines a segmented wake which is updated to trace out entire streamlines beginning at the Kutta edges on each iteration.
+
+    Parameters
+    ----------
+    kutta_edges : list of KuttaEdge
+        List of Kutta edges which define this wake.
+
+    N_segments : int, optional
+        Number of segments to use for each filament. Defaults to 20.
+
+    segment_length : float, optional
+        Length of each discrete filament segment. Defaults to 1.0.
+
+    end_segment_infinite : bool, optional
+        Whether the final segment of the filament should be treated as infinite. Defaults to False.
+
+    corrector_iterations : int, optional
+        How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Get kwargs
+        self._corrector_iterations = kwargs.get('corrector_iterations', 1)
 
 
     def update(self, velocity_from_body, mu, v_inf, omega, verbose):
@@ -570,6 +591,115 @@ class IterativeWake(Wake):
             if len(inbound_panels)>0:
                 v_ind[ind] += V[ind,i]*mu[inbound_panels[0]]
                 v_ind[ind] -= V[ind,i]*mu[inbound_panels[1]]
+
+        # Get influence of edges
+        for edge in self._kutta_edges:
+
+            # Get indices of panels defining the edge
+            p_ind = edge.panel_indices
+
+            # Get infulence
+            v = edge.get_vortex_influence(points)
+
+            # Store
+            v_ind += -v*mu[p_ind[0]]
+            v_ind += v*mu[p_ind[1]]
+
+        return v_ind
+
+
+class VelocityRelaxedWake(SegmentedWake):
+    """Defines a segmented wake which is updated by shifting the segment vertices by the induced velocity on each iteration.
+
+    Parameters
+    ----------
+    kutta_edges : list of KuttaEdge
+        List of Kutta edges which define this wake.
+
+    N_segments : int, optional
+        Number of segments to use for each filament. Defaults to 20.
+
+    segment_length : float, optional
+        Length of each discrete filament segment. Defaults to 1.0.
+
+    end_segment_infinite : bool, optional
+        Whether the final segment of the filament should be treated as infinite. Defaults to False.
+
+    dt : float
+        Time stepping factor for shifting the filament vertices based on the velocity.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Get kwargs
+        self._dt = kwargs["dt"]
+
+
+    def update(self, velocity_from_body, mu, v_inf, omega, verbose):
+        """Updates the shape of the wake based on solved flow results.
+
+        Parameters
+        ----------
+        velocity_from_body : callable
+            Function which will return the velocity induced by the body at a given set of points.
+
+        mu : ndarray
+            Vector of doublet strengths.
+
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
+
+        verbose : bool
+        """
+
+        if verbose:
+            print()
+            prog = OneLineProgress(3, msg="    Updating wake shape")
+
+        # Reorder vertices for computation
+        points = self._vertices[:,1:,:].reshape((self.N*(self.N_segments), 3))
+
+        # Get velocity from body and rotation
+        v_ind = velocity_from_body(points)-vec_cross(omega, points)
+        if verbose: prog.display()
+
+        # Get velocity from wake elements
+        v_ind += self._get_velocity_from_filaments_and_edges(points, mu)
+        if verbose: prog.display()
+
+        # Shift vertices
+        self._vertices[:,1:,:] += self._dt*v_ind.reshape((self.N, self.N_segments, 3))
+        if verbose: prog.display()
+
+
+    def _get_velocity_from_filaments_and_edges(self, points, mu):
+        # Determines the velocity at the given points induced by all filaments and Kutta edges
+
+        # Initialize storage
+        v_ind = np.zeros_like(points)
+
+        # Get filament influences
+        with np.errstate(divide='ignore', invalid='ignore'):
+            V = self._get_filament_influences(points)
+
+        # Loop through filaments
+        for i in range(self.N):
+
+            # Add for outbound panels
+            outbound_panels = self.outbound_panels[i]
+            if len(outbound_panels)>0:
+                v_ind[:] -= V[:,i]*mu[outbound_panels[0]]
+                v_ind[:] += V[:,i]*mu[outbound_panels[1]]
+
+            # Add for inbound panels
+            inbound_panels = self.inbound_panels[i]
+            if len(inbound_panels)>0:
+                v_ind[:] += V[:,i]*mu[inbound_panels[0]]
+                v_ind[:] -= V[:,i]*mu[inbound_panels[1]]
 
         # Get influence of edges
         for edge in self._kutta_edges:

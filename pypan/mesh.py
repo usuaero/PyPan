@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
-from pypan.wake import Wake, NonIterativeWake, IterativeWake
+from pypan.wake import Wake, StraightFixedWake, FullStreamlineWake, VelocityRelaxedWake
 from pypan.kutta_edges import KuttaEdge
 
 
@@ -551,6 +551,9 @@ class Mesh:
 
         Parameters
         ----------
+        type : str
+            May be "full_streamline", or "relaxed".
+
         N_segments : int, optional
             Number of segments to use for each filament. Defaults to 20.
 
@@ -559,10 +562,26 @@ class Mesh:
 
         end_segment_infinite : bool, optional
             Whether the final segment of the filament should be treated as infinite. Defaults to False.
+
+        corrector_iterations : int, optional
+            How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1. Required for "full_streamline" type.
+
+        dt : float
+            Time stepping factor for shifting the filament vertices based on the velocity. Required for "relaxed" type.
         """
 
+        # Get type
+        wake_type = kwargs.get("type")
+        if wake_type is None:
+            raise IOError("Kwarg 'type' is required for set_iterative_wake().")
+
         # Initialize wake
-        self.wake = IterativeWake(kutta_edges=self._kutta_edges, **kwargs)
+        if wake_type == "full_streamline":
+            self.wake = FullStreamlineWake(kutta_edges=self._kutta_edges, **kwargs)
+        elif wake_type == "relaxed":
+            self.wake = VelocityRelaxedWake(kutta_edges=self._kutta_edges, **kwargs)
+        else:
+            raise IOError("{0} is not a valid wake type.".format(wake_type))
 
 
     def plot(self, **kwargs):

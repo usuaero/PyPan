@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from pypan.solvers import Solver
 from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
 from pypan.helpers import OneLineProgress
-from pypan.wake import NonIterativeWake, Wake, IterativeWake
+from pypan.wake import StraightFixedWake
 
 class VortexRingSolver(Solver):
     """Vortex ring (doublet sheet) solver.
@@ -106,7 +106,7 @@ class VortexRingSolver(Solver):
 
         # Get kwargs
         method = kwargs.get("method", "direct")
-        dont_iterate_on_wake = not isinstance(self._mesh.wake, IterativeWake)
+        dont_iterate_on_wake = isinstance(self._mesh.wake, StraightFixedWake)
         if dont_iterate_on_wake:
             wake_iterations = 0
             export_wake_series = False
@@ -201,14 +201,12 @@ class VortexRingSolver(Solver):
 
         # Determine force acting on each panel
         self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
-        if self._verbose: prog.display()
 
         # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
         self._F = np.zeros(3)
         self._F[0] = np.sum(self._dF[:,0])
         self._F[1] = np.sum(self._dF[:,1])
         self._F[2] = np.sum(self._dF[:,2])
-        if self._verbose: prog.display()
 
         # Determine moment contribution due to each panel
         self._dM = vec_cross(self._mesh.r_CG, self._dF)
@@ -218,7 +216,6 @@ class VortexRingSolver(Solver):
         self._M[0] = np.sum(self._dM[:,0])
         self._M[1] = np.sum(self._dM[:,1])
         self._M[2] = np.sum(self._dM[:,2])
-        if self._verbose: prog.display()
 
         # Set solved flag
         self._solved = True
