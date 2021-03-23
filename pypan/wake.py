@@ -625,15 +625,15 @@ class VelocityRelaxedWake(SegmentedWake):
     end_segment_infinite : bool, optional
         Whether the final segment of the filament should be treated as infinite. Defaults to False.
 
-    dt : float
-        Time stepping factor for shifting the filament vertices based on the velocity.
+    K : float
+        Time stepping factor for shifting the filament vertices based on the local induced velocity and distance from the trailing edge.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         # Get kwargs
-        self._dt = kwargs["dt"]
+        self._K = kwargs["K"]
 
 
     def update(self, velocity_from_body, mu, v_inf, omega, verbose):
@@ -658,7 +658,7 @@ class VelocityRelaxedWake(SegmentedWake):
 
         if verbose:
             print()
-            prog = OneLineProgress(3, msg="    Updating wake shape")
+            prog = OneLineProgress(4, msg="    Updating wake shape")
 
         # Reorder vertices for computation
         points = self._vertices[:,1:,:].reshape((self.N*(self.N_segments), 3))
@@ -671,8 +671,16 @@ class VelocityRelaxedWake(SegmentedWake):
         v_ind += self._get_velocity_from_filaments_and_edges(points, mu)
         if verbose: prog.display()
 
+        # Calculate time-stepping parameter
+        U = norm(v_inf)
+        u = v_inf/U
+        dl = self._vertices[:,1:,:]-self._vertices[:,0,:][:,np.newaxis,:]
+        d = vec_inner(dl, u[np.newaxis,:])
+        dt = self._K*d/U
+        if verbose: prog.display()
+
         # Shift vertices
-        self._vertices[:,1:,:] += self._dt*v_ind.reshape((self.N, self.N_segments, 3))
+        self._vertices[:,1:,:] += dt[:,:,np.newaxis]*v_ind.reshape((self.N, self.N_segments, 3))
         if verbose: prog.display()
 
 

@@ -218,13 +218,7 @@ class Mesh:
 
 
     def _rescale_3D_axes(self, ax):
-        # Rescales 3D axes to have same scale
-
-        # Get current limits
-        x_lims = ax.get_xlim()
-        y_lims = ax.get_ylim()
-        z_lims = ax.get_zlim()
-        
+        # Rescales 3D axes to dt
         # Determine ranges
         x_diff = x_lims[1]-x_lims[0]
         y_diff = y_lims[1]-y_lims[0]
@@ -566,8 +560,8 @@ class Mesh:
         corrector_iterations : int, optional
             How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1. Required for "full_streamline" type.
 
-        dt : float
-            Time stepping factor for shifting the filament vertices based on the velocity. Required for "relaxed" type.
+        K : float
+            Time stepping factor for shifting the filament vertices based on the local induced velocity and distance from the trailing edge.
         """
 
         # Get type
