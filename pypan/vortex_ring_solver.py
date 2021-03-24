@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from pypan.solvers import Solver
 from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
 from pypan.helpers import OneLineProgress
-from pypan.wake import StraightFixedWake
+from pypan.wake import StraightFixedWake, MarchingStreamlineWake
 
 class VortexRingSolver(Solver):
     """Vortex ring (doublet sheet) solver.
@@ -82,7 +82,7 @@ class VortexRingSolver(Solver):
             Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
-            How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with an iterative wake. The flow is first solved with a wake in the direction of the freestream. Defaults to 2.
+            How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is dependent on the number of filament segments in the wake and this setting is ignored. Defaults to 2.
 
         export_wake_series : bool, optional
             Whether to export a vtk of the solver results after each wake iteration. Only used if the mesh has been set with an iterative wake. Defaults to False.
@@ -107,11 +107,21 @@ class VortexRingSolver(Solver):
         # Get kwargs
         method = kwargs.get("method", "direct")
         dont_iterate_on_wake = isinstance(self._mesh.wake, StraightFixedWake)
+
+        # Non-iterative wake options
         if dont_iterate_on_wake:
             wake_iterations = 0
             export_wake_series = False
+
+        # Iterative wake options
         else:
+
+            # Number of iterations
             wake_iterations = kwargs.get("wake_iterations", 2)
+            if isinstance(self._mesh.wake, MarchingStreamlineWake):
+                wake_iterations = self._mesh.wake.N_segments_final
+
+            # Wake series export
             export_wake_series = kwargs.get("export_wake_series", False)
             if export_wake_series:
                 wake_series_title = kwargs.get("wake_series_title")

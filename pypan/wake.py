@@ -316,7 +316,7 @@ class SegmentedWake(Wake):
 
         # Initialize filament points
         self.N = vertices.shape[0]
-        self._vertices = np.zeros((self.N, self.N_segments, 3))
+        self._vertices = np.zeros((self.N, self.N_segments+1, 3))
         self._vertices[:,0,:] = vertices
 
 
@@ -708,6 +708,282 @@ class VelocityRelaxedWake(SegmentedWake):
             if len(inbound_panels)>0:
                 v_ind[:] += V[:,i]*mu[inbound_panels[0]]
                 v_ind[:] -= V[:,i]*mu[inbound_panels[1]]
+
+        # Get influence of edges
+        for edge in self._kutta_edges:
+
+            # Get indices of panels defining the edge
+            p_ind = edge.panel_indices
+
+            # Get infulence
+            v = edge.get_vortex_influence(points)
+
+            # Store
+            v_ind += -v*mu[p_ind[0]]
+            v_ind += v*mu[p_ind[1]]
+
+        return v_ind
+
+
+class MarchingStreamlineWake(SegmentedWake):
+    """Defines a segmented wake which is updated by adding a filament segment in the direction of the local velocity at each iteration.
+
+    Parameters
+    ----------
+    kutta_edges : list of KuttaEdge
+        List of Kutta edges which define this wake.
+
+    N_segments : int, optional
+        Number of segments to use for each filament. Must be the same as the number of wake iterations for the solver. Defaults to 20.
+
+    segment_length : float, optional
+        Length of each discrete filament segment. Defaults to 1.0.
+
+    end_segment_infinite : bool, optional
+        Whether the final segment of the filament should be treated as infinite. Defaults to False.
+
+    corrector_iterations : int, optional
+        How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Get kwargs
+        self._corrector_iterations = kwargs.get("corrector_iterations", 1)
+
+        # Set segment counters
+        self.N_segments_final = copy.copy(self.N_segments) # How many segments this wake should have when done iterating. It starts with zero.
+
+
+    def set_filament_direction(self, v_inf, omega):
+        """Resets the counter for determining how far along the wake has been solved. Does not update filament vertices (yeah it's a misnomer, but hey, consistency).
+
+        Parameters
+        ----------
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
+        """
+
+        # Get filament starting directions (required for offsetting the initial point to avoid infinite velocities)
+        origins = self._vertices[:,0,:]
+        self._filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, origins)
+        self._filament_dirs /= vec_norm(self._filament_dirs)[:,np.newaxis]
+
+        # Reset number of segments which have been set
+        self.N_segments = 0
+
+
+    def get_vtk_data(self, **kwargs):
+        """Returns a list of vertices and line indices describing this wake.
+        
+        Parameters
+        ----------
+        length : float, optional
+            Length of the final filament segment, if set as infinite. Defaults to 20 times the filament segment length.
+        """
+
+        # Get kwargs
+        l = kwargs.get("length", 20.0*self.l)
+
+        # Initialize storage
+        vertices = []
+        line_vertex_indices = []
+
+        # Loop through filaments
+        i = 0
+        for j in range(self.N):
+
+            # Add vertices
+            for k in range(self.N_segments+1):
+                vertices.append(self._vertices[j,k])
+
+                # Add indices
+                if k != self.N_segments:
+                    line_vertex_indices.append([2, i+k, i+k+1])
+
+            # Increment index
+            i += self.N_segments+1
+
+        return vertices, line_vertex_indices, self.N*self.N_segments
+
+
+    def get_influence_matrix(self, **kwargs):
+        """Create wake influence matrix; first index is the influenced points, second is the influencing panel, third is the velocity component.
+
+        Parameters
+        ----------
+        points : ndarray
+            Array of points at which to calculate the influence.
+
+        N_panels : int
+            Number of panels in the mesh to which this wake belongs.
+
+        Returns
+        -------
+        ndarray
+            Trailing vortex influences.
+        """
+
+        # Get kwargs
+        points = kwargs.get("points")
+
+        # Initialize storage
+        N = len(points)
+        vortex_influence_matrix = np.zeros((N, kwargs["N_panels"], 3))
+
+        # Get influence of edges
+        for edge in self._kutta_edges:
+
+            # Get indices of panels defining the edge
+            p_ind = edge.panel_indices
+
+            # Get infulence
+            V = edge.get_vortex_influence(points)
+
+            # Store
+            vortex_influence_matrix[:,p_ind[0]] = -V
+            vortex_influence_matrix[:,p_ind[1]] = V
+
+        # Get influence of filaments
+        if self.N_segments > 0:
+            V = self._get_filament_influences(points)
+            for i in range(self.N):
+
+                # Add for outbound panels
+                outbound_panels = self.outbound_panels[i]
+                if len(outbound_panels)>0:
+                    vortex_influence_matrix[:,outbound_panels[0]] -= V[:,i]
+                    vortex_influence_matrix[:,outbound_panels[1]] += V[:,i]
+
+                # Add for inbound panels
+                inbound_panels = self.inbound_panels[i]
+                if len(inbound_panels)>0:
+                    vortex_influence_matrix[:,inbound_panels[0]] += V[:,i]
+                    vortex_influence_matrix[:,inbound_panels[1]] -= V[:,i]
+        
+        return vortex_influence_matrix
+
+
+    def _get_filament_influences(self, points):
+        # Determines the unit vortex influence from the wake filaments on the given points
+
+        # Determine displacement vectors: first index is point, second is filament, third is segment, fourth is vector component
+        r0 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,:self.N_segments,:]
+        r1 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,1:self.N_segments+1,:]
+        print(r0.shape)
+        print(r1.shape)
+
+        # Determine displacement vector magnitudes
+        r0_mag = vec_norm(r0)
+        r1_mag = vec_norm(r1)
+
+        # Calculate influence of each segment
+        inf = np.sum(((r0_mag+r1_mag)/(r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,:,:,np.newaxis]*vec_cross(r0, r1), axis=2)
+
+        return 0.25/np.pi*np.nan_to_num(inf)
+
+
+
+    def update(self, velocity_from_body, mu, v_inf, omega, verbose):
+        """Updates the shape of the wake based on solved flow results.
+
+        Parameters
+        ----------
+        velocity_from_body : callable
+            Function which will return the velocity induced by the body at a given set of points.
+
+        mu : ndarray
+            Vector of doublet strengths.
+
+        v_inf : ndarray
+            Freestream velocity vector.
+
+        omega : ndarray
+            Angular rate vector.
+
+        verbose : bool
+        """
+
+        # Update number of segments
+        self.N_segments += 1
+
+        if verbose:
+            print()
+            prog = OneLineProgress(self.N_segments+1, msg="    Updating wake shape with {0} segments".format(self.N_segments))
+
+        # Initialize storage
+        new_locs = np.zeros((self.N, self.N_segments, 3))
+
+        # Get starting locations (offset slightly from origin to avoid singularities)
+        curr_loc = self._vertices[:,0,:]+self._filament_dirs*0.01
+        
+        if verbose: prog.display()
+
+        # Loop through filament segments (the first vertex never changes)
+        next_loc = np.zeros((self.N, 3))
+        for i in range(1,self.N_segments+1):
+
+            # Determine velocities at current point
+            v0 = velocity_from_body(curr_loc)+v_inf[np.newaxis,:]-vec_cross(omega, curr_loc)
+            v0 += self._get_velocity_from_other_filaments_and_edges(curr_loc, mu)
+
+            # Guess of next location
+            next_loc = curr_loc+self.l*v0/vec_norm(v0)[:,np.newaxis]
+
+            # Iteratively correct
+            for j in range(self._corrector_iterations):
+
+                # Velocities at next location
+                v1 = velocity_from_body(next_loc)+v_inf[np.newaxis,:]
+                v1 += self._get_velocity_from_other_filaments_and_edges(next_loc, mu)
+
+                # Correct location
+                v_avg = 0.5*(v0+v1)
+                next_loc = curr_loc+self.l*v_avg/vec_norm(v_avg)[:,np.newaxis]
+
+            # Store
+            new_locs[:,i-1,:] = np.copy(next_loc)
+
+            # Move downstream
+            curr_loc = np.copy(next_loc)
+
+            if verbose: prog.display()
+
+        # Store the new locations
+        self._vertices[:,1:self.N_segments+1,:] = new_locs
+
+
+    def _get_velocity_from_other_filaments_and_edges(self, points, mu):
+        # Determines the velocity at each point (assumed to be one on each filament in order) induced by all other filaments and Kutta edges
+
+        # Initialize storage
+        v_ind = np.zeros((self.N, 3))
+
+        # Get filament influences
+        with np.errstate(divide='ignore', invalid='ignore'):
+            V = self._get_filament_influences(points) # On the first segment of the first iteration, this will throw warnings because the initial point is on the filament; these can safely be ignored
+
+        # Loop through filaments
+        for i in range(self.N):
+
+            # Get indices of points not belonging to this filament
+            ind = [j for j in range(self.N) if j!=i]
+
+            # Add for outbound panels
+            outbound_panels = self.outbound_panels[i]
+            if len(outbound_panels)>0:
+                v_ind[ind] -= V[ind,i]*mu[outbound_panels[0]]
+                v_ind[ind] += V[ind,i]*mu[outbound_panels[1]]
+
+            # Add for inbound panels
+            inbound_panels = self.inbound_panels[i]
+            if len(inbound_panels)>0:
+                v_ind[ind] += V[ind,i]*mu[inbound_panels[0]]
+                v_ind[ind] -= V[ind,i]*mu[inbound_panels[1]]
 
         # Get influence of edges
         for edge in self._kutta_edges:

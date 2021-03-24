@@ -12,7 +12,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
-from pypan.wake import Wake, StraightFixedWake, FullStreamlineWake, VelocityRelaxedWake
+from pypan.wake import Wake, StraightFixedWake, FullStreamlineWake, VelocityRelaxedWake, MarchingStreamlineWake
 from pypan.kutta_edges import KuttaEdge
 
 
@@ -546,16 +546,16 @@ class Mesh:
         Parameters
         ----------
         type : str
-            May be "full_streamline", or "relaxed".
+            May be "full_streamline", "relaxed", or "marching_streamline".
 
         N_segments : int, optional
-            Number of segments to use for each filament. Defaults to 20.
+            Number of segments to use for each filament. Defaults to 20. If type is "marching_streamline", this number must match the number of wake iterations specified for the solver.
 
         segment_length : float, optional
             Length of each discrete filament segment. Defaults to 1.0.
 
         end_segment_infinite : bool, optional
-            Whether the final segment of the filament should be treated as infinite. Defaults to False.
+            Whether the final segment of the filament should be treated as infinite. Only used if type is "full_streamline" or "relaxed". Defaults to False.
 
         corrector_iterations : int, optional
             How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1. Required for "full_streamline" type.
@@ -574,6 +574,8 @@ class Mesh:
             self.wake = FullStreamlineWake(kutta_edges=self._kutta_edges, **kwargs)
         elif wake_type == "relaxed":
             self.wake = VelocityRelaxedWake(kutta_edges=self._kutta_edges, **kwargs)
+        elif wake_type == "marching_streamline":
+            self.wake = MarchingStreamlineWake(kutta_edges=self._kutta_edges, **kwargs)
         else:
             raise IOError("{0} is not a valid wake type.".format(wake_type))
 
