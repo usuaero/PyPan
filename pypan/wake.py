@@ -874,8 +874,6 @@ class MarchingStreamlineWake(SegmentedWake):
         # Determine displacement vectors: first index is point, second is filament, third is segment, fourth is vector component
         r0 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,:self.N_segments,:]
         r1 = points[:,np.newaxis,np.newaxis,:]-self._vertices[np.newaxis,:,1:self.N_segments+1,:]
-        print(r0.shape)
-        print(r1.shape)
 
         # Determine displacement vector magnitudes
         r0_mag = vec_norm(r0)

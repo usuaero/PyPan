@@ -234,7 +234,7 @@ class VortexRingSolver(Solver):
 
     
     def get_velocity_off_body(self, points):
-        """Determines the velocity at the given points off the body. Considers the influence of both the body and the wake. Should not be used for points close to either.
+        """Determines the velocity at the given points off the body. Considers the influence of both the body, wake, and freestream. Should not be used for points close to the body or wake.
 
         Parameters
         ----------
