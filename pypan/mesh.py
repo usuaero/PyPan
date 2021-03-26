@@ -537,7 +537,7 @@ class Mesh:
         """
 
         # Initialize wake
-        self.wake = NonIterativeWake(kutta_edges=self._kutta_edges, **kwargs)
+        self.wake = StraightFixedWake(kutta_edges=self._kutta_edges, **kwargs)
 
 
     def set_iterative_wake(self, **kwargs):

@@ -21,26 +21,28 @@ class Network:
     vertices : ndarray, optional
         Array of vertices defining this network.
 
-    type_code : float
-        Number code for the type of network this is. The network type determines what boundary conditions are to be imposed on the surface of the network.
+    type_code : float, optional
+        Number code for the type of network this is. The network type determines what boundary conditions are to be imposed on the surface of the network. Network codes available are:
 
-        The first digit specifies the class of boundary condition. The second digit specifies the subclass. These are as follows
+        | Code | Description                                             |
+        | ---- | ------------------------------------------------------- |
+        | 11   | Velocity impermeability on upper surface of thick body. |
+        | 5    | Superinclined surface velocity impermeability.          |
+        | 18   | Standard wake network.                                  |
+        | 20   | Wake network with constant doublet strength.            |
 
-        Class 1: Impermeable analysis
-
-            Subclasses:
-
-                1 : Zero mass-flux imposed on upper surface of network.
-                2 : Zero mass-flux imposed on lower surface of network.
-                3 : Zero mass-flux imposed on average surface.
-                4 : Wake network placed behind lifting surfaces or wake networks of the same type.
-                5 : Wake network used to obtain wake continuity.
+        Defaults to 11.
     """
 
     def __init__(self, **kwargs):
 
         # Get kwargs
-        self.type_code = kwargs.get("type_code")
+        # The type codes available here are those described in Ted Giblette's thesis. I can't find these exact codes tied to actual PAN AIR boundary conditions specified anywhere in the PAN AIR docs. They seem to correspond to
+        # 11: Class 1, subclass 1
+        # 5: Class 1, subclass 6
+        # 18: Class 1, subclass 4
+        # 20: Class 1, subclass 5 (not sure on this one)
+        self.type_code = int(kwargs.get("type_code", 11))
         self.name = kwargs.get("name")
 
         # Parse input
