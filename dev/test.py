@@ -29,6 +29,7 @@ if __name__=="__main__":
         my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="STL", kutta_angle=90.0, verbose=True)
     else:
         my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
+    my_mesh.plot()
 
     # Export vtk if we need to
     vtk_file = mesh_file.replace(".stl", ".vtk")

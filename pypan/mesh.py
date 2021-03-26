@@ -219,6 +219,12 @@ class Mesh:
 
     def _rescale_3D_axes(self, ax):
         # Rescales 3D axes to dt
+
+        # Get current limits
+        x_lims = ax.get_xlim()
+        y_lims = ax.get_ylim()
+        z_lims = ax.get_zlim()
+
         # Determine ranges
         x_diff = x_lims[1]-x_lims[0]
         y_diff = y_lims[1]-y_lims[0]

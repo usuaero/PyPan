@@ -9,9 +9,6 @@ if __name__=="__main__":
     # Set fixed wake in the direction of the freestream
     my_mesh.set_fixed_wake(type="freestream")
 
-    # Plot mesh using matplotlib (slow)
-    my_mesh.plot()
-
     # Initialize vortex ring solver using the mesh already created
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
@@ -23,5 +20,5 @@ if __name__=="__main__":
     print("F: ", F)
     print("M: ", M)
 
-    # Export results as VTK
+    # Export results as VTK (for viewing in ParaView)
     my_solver.export_vtk("case_results.vtk")
