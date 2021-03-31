@@ -14,9 +14,6 @@ if __name__=="__main__":
     # Set fixed wake in the direction of the freestream
     my_mesh.set_fixed_wake(type="freestream")
 
-    # Plot mesh using matplotlib (slow)
-    my_mesh.plot()
-
     # Initialize vortex ring solver using the mesh already created
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
