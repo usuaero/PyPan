@@ -21,6 +21,8 @@ class Wake:
         self._kutta_edges = kwargs["kutta_edges"]
         self._N_edges = len(self._kutta_edges)
         self.filaments = []
+        self.N = 0
+        self.N_segments = 0
 
 
     def _arrange_kutta_vertices(self):

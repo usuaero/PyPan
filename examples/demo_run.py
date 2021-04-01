@@ -3,15 +3,17 @@ import pypan as pp
 if __name__=="__main__":
 
     # Load mesh
-    my_mesh = pp.Mesh(name="demo_wing", mesh_file="mesh.vtk", mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
-    my_mesh.set_iterative_wake(segment_length=0.5)
+    my_mesh = pp.Mesh(name="demo_wing", mesh_file="dev/meshes/swept_wing_low_grid.vtk", kutta_angle=90.0, mesh_file_type="VTK", verbose=True)
+
+    # Set wake
+    my_mesh.set_iterative_wake(type="full_streamline", N_segments=40, segment_length=0.5)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh)
 
     # Solve
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769)
-    F, M = my_solver.solve(verbose=True)
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[1.0, 0.0, 0.0])
+    F, M = my_solver.solve(verbose=True, wake_iterations=4, export_wake_series=True, wake_series_title='demo')
 
     print()
     print("Force vector: {0}".format(F))
