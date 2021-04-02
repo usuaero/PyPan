@@ -4,7 +4,7 @@ if __name__=="__main__":
 
     # Load mesh from vtk file
     mesh_file = "swept_wing.vtk"
-    my_mesh = pp.Mesh(name="test_mesh", mesh_file=mesh_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
+    my_mesh = pp.Mesh(name="test_mesh", mesh_file=mesh_file, verbose=True)
 
     # Set fixed wake
     my_mesh.set_wake(type="fixed")

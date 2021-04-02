@@ -25,10 +25,7 @@ if __name__=="__main__":
     name = mesh_file.replace("dev/meshes/", "").replace(".stl", "").replace(".vtk", "")
 
     # Load mesh
-    if 'stl' in mesh_file or 'STL' in mesh_file:
-        my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="STL", verbose=True)
-    else:
-        my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, mesh_file_type="VTK", verbose=True)
+    my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, verbose=True)
 
     # Export vtk if we need to
     vtk_file = mesh_file.replace(".stl", ".vtk")

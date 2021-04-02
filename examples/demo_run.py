@@ -3,7 +3,7 @@ import pypan as pp
 if __name__=="__main__":
 
     # Load mesh
-    my_mesh = pp.Mesh(name="demo_wing", mesh_file="dev/meshes/swept_wing_low_grid.vtk", kutta_angle=90.0, mesh_file_type="VTK", verbose=True)
+    my_mesh = pp.Mesh(name="demo_wing", mesh_file="dev/meshes/swept_wing_low_grid.vtk", verbose=True)
 
     # Set wake
     my_mesh.set_wake(type="full_streamline", N_segments=40, segment_length=0.5)

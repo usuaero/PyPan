@@ -25,10 +25,7 @@ class Mesh:
         Name of the mesh.
 
     mesh_file : str
-        File path to the mesh file. Please note that PyPan assumes the panel normals all point outward. Failure to meet this condition can produce erroneous results.
-
-    mesh_file_type : str
-        The type of mesh file being loaded. Can be "STL" or "VTK".
+        File path to the mesh file. Please note that PyPan assumes the panel normals all point outward. Failure to meet this condition can produce erroneous results. Can be "STL" or "VTK".
 
         ASCII or binary STL files may be used.
 
@@ -49,7 +46,6 @@ class Mesh:
         # Load kwargs
         self.name = kwargs["name"]
         mesh_file = kwargs["mesh_file"]
-        mesh_type = kwargs["mesh_file_type"]
         self._verbose = kwargs.get("verbose", False)
         self.CG = np.array(kwargs.get("CG", [0.0, 0.0, 0.0]))
         self._gradient_type = kwargs.get('gradient_fit_type', 'quad')
@@ -58,14 +54,14 @@ class Mesh:
         if self._verbose:
             start_time = time.time()
             print("\nReading in mesh...", end='', flush=True)
-        self._load_mesh(mesh_file, mesh_type)
+        self._load_mesh(mesh_file)
         if self._verbose:
             end_time = time.time()
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
         # Create panel vertex mapping
         # VTK does this inherently; STL has a faster way than the brute-force method
-        if mesh_type != "VTK" and mesh_type != "STL":
+        if self._vertex_mapping_needed:
             self._determine_panel_vertex_mapping()
 
         # Determine panel adjacency mapping
@@ -84,16 +80,20 @@ class Mesh:
             print("    # vertices: {0}".format(self._vertices.shape[0]))
 
     
-    def _load_mesh(self, mesh_file, mesh_file_type):
+    def _load_mesh(self, mesh_file):
         # Loads the mesh from the input file
 
+        self._vertex_mapping_needed = True
+
         # STL
-        if mesh_file_type == "STL":
+        if "stl" in mesh_file or "STL" in mesh_file:
             self._load_stl(mesh_file)
+            self._vertex_mapping_needed = False
 
         # VTK
-        elif mesh_file_type == "VTK":
+        elif "vtk" in mesh_file or "VTK" in mesh_file:
             self._load_vtk(mesh_file)
+            self._vertex_mapping_needed = False
 
         # Unrecognized type
         else:
