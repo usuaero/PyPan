@@ -6,8 +6,8 @@ if __name__=="__main__":
     mesh_file = "swept_wing.vtk"
     my_mesh = pp.Mesh(name="test_mesh", mesh_file=mesh_file, mesh_file_type="VTK", verbose=True, kutta_angle=90.0)
 
-    # Set fixed wake in the direction of the freestream
-    my_mesh.set_fixed_wake(type="freestream")
+    # Set fixed wake
+    my_mesh.set_wake(type="fixed")
 
     # Initialize vortex ring solver using the mesh already created
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)

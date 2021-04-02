@@ -6,7 +6,7 @@ if __name__=="__main__":
     my_mesh = pp.Mesh(name="demo_wing", mesh_file="dev/meshes/swept_wing_low_grid.vtk", kutta_angle=90.0, mesh_file_type="VTK", verbose=True)
 
     # Set wake
-    my_mesh.set_iterative_wake(type="full_streamline", N_segments=40, segment_length=0.5)
+    my_mesh.set_wake(type="full_streamline", N_segments=40, segment_length=0.5)
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh)
