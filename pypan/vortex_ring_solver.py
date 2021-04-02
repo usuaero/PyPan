@@ -69,6 +69,9 @@ class VortexRingSolver(Solver):
         # Get solid body rotation
         self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
 
+        # Finish Kutta edge search on mesh
+        self._mesh.finalize_kutta_edge_search(self._u_inf)
+
         # Update wake
         self._mesh.wake.set_filament_direction(self._v_inf, self._omega)
 
@@ -82,7 +85,7 @@ class VortexRingSolver(Solver):
             Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
-            How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is dependent on the number of filament segments in the wake and this setting is ignored. Defaults to 2.
+            How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is equal to the number of filament segments in the wake and this setting is ignored. Defaults to 2.
 
         export_wake_series : bool, optional
             Whether to export a vtk of the solver results after each wake iteration. Only used if the mesh has been set with an iterative wake. Defaults to False.
@@ -131,7 +134,7 @@ class VortexRingSolver(Solver):
         # Iterate on wake
         for i in range(wake_iterations+1):
             if self._verbose and not dont_iterate_on_wake:
-                print("\nWake Iteration {0}".format(i+1))
+                print("\nWake Iteration {0}".format(i))
                 print("====================")
             if self._verbose:
                 print()

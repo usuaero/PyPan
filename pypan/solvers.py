@@ -18,7 +18,6 @@ class Solver:
 
         # Gather control point locations and normals
         self._N_panels = self._mesh.N
-        self._N_edges = self._mesh.N_edges
 
         # Determine projection matrix onto plane of each panel
         self._P_surf = np.repeat(np.identity(3)[np.newaxis,:,:], self._N_panels, axis=0)-np.matmul(self._mesh.n[:,:,np.newaxis], self._mesh.n[:,np.newaxis,:])

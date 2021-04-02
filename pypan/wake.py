@@ -111,21 +111,18 @@ class StraightFixedWake(Wake):
     kutta_edges : list of KuttaEdge
         List of Kutta edges which define this wake.
 
-    type : str
-        May be "custom", "freestream", "freestream_constrained", "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults to "freestream".
+    fixed_direction_type : str, optional
+        May be "custom", "freestream", or "freestream_and_rotation". Defaults to "freestream_and_rotation".
 
-    dir : list or ndarray, optional
-        Direction of the vortex filaments. Required for type "custom".
-
-    normal_dir : list or ndarray, optional
-        Normal direction of the plane in which the direction of the vortex filaments should be constrained. Required for type "freestream_constrainted" or "freestream_and_rotation_constrained".
+    custom_dir : list or ndarray, optional
+        Direction of the vortex filaments. Only used if "fixed_direction_type" is "custom", and then it is required.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         # Store type
-        self._type = kwargs.get("type", "freestream")
+        self._type = kwargs.get("fixed_direction_type", "freestream_and_rotation")
 
         # Initialize filaments
         self._vertices, self.inbound_panels, self.outbound_panels = self._arrange_kutta_vertices()
@@ -140,22 +137,11 @@ class StraightFixedWake(Wake):
         # Get direction for custom wake
         if self._type=="custom":
             try:
-                u = np.array(kwargs.get("dir"))
+                u = np.array(kwargs.get("custom_dir"))
                 u /= norm(u)
                 self.filament_dirs[:] = u
             except:
-                raise IOError("'dir' is required for non-iterative wake type 'custom'.")
-
-        # Get normal direction for constrained wake
-        if "constrained" in self._type:
-            try:
-                self._n = np.array(kwargs.get("normal_dir"))
-                self._n /= norm(self._n)
-            except:
-                raise IOError("'normal_dir' is required for wake type {0}.".format(self._type))
-            
-            # Create projection matrix
-            self._P = np.eye(3)-np.matmul(self._n[:,np.newaxis], self._n[np.newaxis,:])
+                raise IOError("'custom_dir' is required for non-iterative wake type 'custom'.")
 
 
     def set_filament_direction(self, v_inf, omega):
@@ -175,21 +161,9 @@ class StraightFixedWake(Wake):
             u = v_inf/norm(v_inf)
             self.filament_dirs[:] = u
 
-        # Freestream constrained
-        elif self._type=="freestream_constrained":
-            u = np.einsum('ij,j', self._P, v_inf)
-            u /= norm(u)
-            self.filament_dirs[:] = u
-
         # Freestream with rotation
         elif self._type=="freestream_and_rotation":
             self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
-            self.filament_dirs /= vec_norm(self.filament_dirs)[:,np.newaxis]
-
-        # Freestream with rotation constrained
-        elif self._type=="freestream_and_rotation_constrained":
-            self.filament_dirs = v_inf[np.newaxis,:]-vec_cross(omega, self._vertices)
-            self.filament_dirs = np.einsum('ij,kj->ki', self._P, self.filament_dirs)
             self.filament_dirs /= vec_norm(self.filament_dirs)[:,np.newaxis]
 
 

@@ -1,7 +1,7 @@
 import time
-
 import stl
 import warnings
+import copy
 
 import numpy as np
 import pyvista as pv
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from mpl_toolkits.mplot3d import Axes3D
 
-from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm
+from pypan.pp_math import vec_cross, vec_inner, vec_norm, norm, inner
 from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
 from pypan.wake import Wake, StraightFixedWake, FullStreamlineWake, VelocityRelaxedWake, MarchingStreamlineWake
@@ -34,18 +34,14 @@ class Mesh:
 
         Currently PyPan can import a VTK *unstructured mesh*. The panels should be given as POLYGONS. PyPan can accept no other format currently. Within a VTK file, the normal vector, area, and centroid may also be given under CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not currently able to parse non-default lookup tables).
 
-
     adjacency_file : str, optional
         Name of the panel adjacency mapping file for this mesh. Must be previously generated using Mesh.export_panel_adjacency_mapping(). Defaults to None, in which case the panel adjacency mapping will be determined using a brute force approach. Also, if the file cannot be found as specified, it will be ignored and the panel adjacency mapping will be determined using the brute force approach.
-
-    kutta_angle : float, optional
-        The angle threshold for determining where the Kutta condition should be enforced. Defaults to None, in which case Kutta edges will not be determined. This is not needed in some cases. See the documentation for your specific solver to determine whether Kutta edges are required.
 
     CG : list, optional
         Location of the center of gravity for the mesh. This is the location about which moments are computed. Defaults to [0.0, 0.0, 0.0]. This is relative to the coordinate system of the mesh.
 
     gradient_fit_type : str, optional
-        The type of basis functions to use for least-suares estimation of gradients. May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
+        The type of basis functions to use for least-squares estimation of gradients. May be 'linear' or 'quad'. Defaults to 'quad' (recommended).
     """
 
     def __init__(self, **kwargs):
@@ -56,6 +52,7 @@ class Mesh:
         mesh_type = kwargs["mesh_file_type"]
         self._verbose = kwargs.get("verbose", False)
         self.CG = np.array(kwargs.get("CG", [0.0, 0.0, 0.0]))
+        self._gradient_type = kwargs.get('gradient_fit_type', 'quad')
 
         # Load mesh
         if self._verbose:
@@ -74,25 +71,17 @@ class Mesh:
         # Determine panel adjacency mapping
         self._determine_panel_adjacency_mapping(**kwargs)
 
-        # Find Kutta edges
-        self._find_kutta_edges(**kwargs)
-
         # Calculate moment arms
         self.r_CG = self.cp-self.CG[np.newaxis,:]
 
-        # Set up least-squares matrices
-        self._set_up_lst_sq(kwargs.get('gradient_fit_type', 'quad'))
-
         # Set up dummy wake
-        self.wake = Wake(kutta_edges=self._kutta_edges)
+        self.wake = Wake(kutta_edges=[])
 
         # Display mesh information
         if self._verbose:
             print("\nMesh Parameters:")
             print("    # panels: {0}".format(self.N))
             print("    # vertices: {0}".format(self._vertices.shape[0]))
-            if hasattr(self, "N_edges"):
-                print("    # Kutta edges: {0}".format(self.N_edges))
 
     
     def _load_mesh(self, mesh_file, mesh_file_type):
@@ -381,74 +370,102 @@ class Mesh:
                     prog.display()
 
 
-    def _find_kutta_edges(self, **kwargs):
-        # Determines where Kutta condition should exist; relies on an adjacency mapping already being created
+    def _initialize_kutta_search(self, **kwargs):
+        # Sets up the Kutta edge search; does everything not dependent on the freestream vector; relies on an adjacency mapping already being created
 
-        # Get Kutta angle
-        theta_K = kwargs.get("kutta_angle", None)
+        if self._verbose:
+            print()
+            prog = OneLineProgress(self.N, msg="Locating potential Kutta edges")
+
+        # Get parameters
+        self._theta_K = np.radians(kwargs.get("kutta_angle", 90.0))
+        self._check_freestream = kwargs.get("check_freestream", True)
 
         # Initialize edge storage
         self._kutta_edges = []
 
-        # Look for adjacent panels where the Kutta condition should be applied
-        if theta_K is not None:
-            theta_K = np.radians(theta_K)
+        # Look for adjacent panels where the angle between their normals is greater than the Kutta angle
+        self._potential_kutta_panels = []
+
+        # Get panel angles
+        with np.errstate(invalid='ignore'):
+            theta = np.abs(np.arccos(np.einsum('ik,jk->ij', self.n, self.n)))
+
+        # Determine which panels have an angle greater than the Kutta angle
+        angle_greater = (theta>self._theta_K).astype(int)
+        i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
+
+        # Loop through possible combinations
+        for i in i_panels:
+            panel_i = self.panels[i]
+
+            # Check abutting panels for Kutta angle
+            for j in panel_i.abutting_panels:
+
+                # Don't repeat
+                if j <= i:
+                    continue
+
+                # Check angle
+                if angle_greater[i,j]:
+                    self._potential_kutta_panels.append([i,j])
 
             if self._verbose:
-                print()
-                prog = OneLineProgress(self.N, msg="Determining locations to apply Kutta condition")
+                prog.display()
 
-            # Get panel angles
-            with np.errstate(invalid='ignore'):
-                theta = np.abs(np.arccos(np.einsum('ijk,ijk->ij', self.n[:,np.newaxis], self.n[np.newaxis,:])))
 
-            # Determine which panels have an angle greater than the Kutta angle
-            angle_greater = (theta>theta_K).astype(int)
-            i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
+    def finalize_kutta_edge_search(self, u_inf):
+        """Determines where the Kutta condition should exist based on previously located adjacent panels and the freestream velocity.
 
-            # Loop through possible combinations
-            for i in i_panels:
-                panel_i = self.panels[i]
+        Parameters
+        ----------
+        u_inf : ndarray
+            Freestream velocity vector (direction of the oncoming flow).
+        """
 
-                # Check abutting panels for Kutta angle
-                j_panels = np.argwhere(angle_greater[i]).flatten()
-                for j in panel_i.abutting_panels:
+        if self._verbose:
+            print()
+            prog = OneLineProgress(len(self._potential_kutta_panels), msg="Finalizing Kutta edge locations")
 
-                    # Don't repeat
-                    if j <= i:
-                        continue
+        # Loop through previously determined possibilities
+        for i,j in self._potential_kutta_panels:
 
-                    # Check angle
-                    if j in j_panels:
-                        panel_j = self.panels[j]
-                    
-                        # Get edge vertices
-                        v0 = None
-                        for ii, vi in enumerate(panel_i.vertices):
-                            for vj in panel_j.vertices:
+            # Get panel objects
+            panel_i = self.panels[i]
+            panel_j = self.panels[j]
 
-                                # Check distance
-                                d = norm(vi-vj)
-                                if d<1e-10:
+            # Check freestream condition
+            if not self._check_freestream or inner(panel_i.n, u_inf)>0 or inner(panel_j.n, u_inf)>0:
+            
+                # Get edge vertices
+                v0 = None
+                for ii, vi in enumerate(panel_i.vertices):
+                    for vj in panel_j.vertices:
 
-                                    # Store first
-                                    if v0 is None:
-                                        v0 = vi
-                                        ii0 = ii
+                        # Check distance
+                        d = norm(vi-vj)
+                        if d<1e-10:
 
-                                    # Initialize edge object; vertices are stored in the same order as the first panel
-                                    else:
-                                        if ii-ii0 == 1: # Order is important for definition of circulation
-                                            self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
-                                        else:
-                                            self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
-                                        break
+                            # Store first
+                            if v0 is None:
+                                v0 = vi
+                                ii0 = ii
 
-                if self._verbose:
-                    prog.display()
+                            # Initialize edge object; vertices are stored in the same order as the first panel
+                            else:
+                                if ii-ii0 == 1: # Order is important for definition of circulation
+                                    self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                else:
+                                    self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
+                                break
+
+            if self._verbose:
+                prog.display()
 
         # Store number of edges
         self.N_edges = len(self._kutta_edges)
+        if self._verbose:
+            print("    Found {0} Kutta edges.".format(self.N_edges))
 
         if self._verbose:
             print()
@@ -460,8 +477,13 @@ class Mesh:
             # Loop through panels touching this one
             for j in panel.touching_panels:
 
-                # Check panel angle or if the Kutta angle has not been given
-                if theta_K is None or not angle_greater[i,j]:
+                # Check for kutta edge
+                for kutta_edge in self._kutta_edges:
+                    pi = kutta_edge.panel_indices
+                    if (pi[0]==i and pi[1]==j) or (pi[0]==j and pi[1]==i):
+                        break
+
+                else:
                     panel.touching_panels_not_across_kutta_edge.append(j)
 
                     # Check if the panel is abutting
@@ -486,16 +508,33 @@ class Mesh:
             if self._verbose:
                 prog.display()
 
+        # Set up least-squares matrices
+        self._set_up_lst_sq()
 
-    def _set_up_lst_sq(self, fit_type):
-        # Determines the A matrix to least-squares estimation of the gradient.
+        # Initialize wake
+        try:
+            if self._wake_type == "fixed":
+                self.wake = StraightFixedWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
+            elif self._wake_type == "full_streamline":
+                self.wake = FullStreamlineWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
+            elif self._wake_type == "relaxed":
+                self.wake = VelocityRelaxedWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
+            elif self._wake_type == "marching_streamline":
+                self.wake = MarchingStreamlineWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
+            else:
+                raise IOError("{0} is not a valid wake type.".format(wake_type))
+        except UnboundLocalError as e:
+            raise RuntimeError("Mesh '{0}' has no Kutta edges, so no wake can be set. Please properly specify a Kutta edge search before attempting to set a wake.".format(self.name)) from e
+
+
+    def _set_up_lst_sq(self):
+        # Determines the A matrix to least-squares estimation of the gradient. Must be called after kutta edges are determined.
 
         if self._verbose:
             print()
             prog = OneLineProgress(self.N, msg="Calculating least-squares matrices")
 
         # Initialize
-        self._gradient_type = fit_type
         self.A_lsq = []
 
         # Loop through panels
@@ -527,63 +566,56 @@ class Mesh:
                 prog.display()
 
 
-    def set_fixed_wake(self, **kwargs):
-        """Sets up a non-iterative wake for this mesh. This should be called before executing a solver on this mesh.
+    def set_wake(self, **kwargs):
+        """Sets up a wake for this mesh.
+
+        A fixed wake consists of straight, semi-infinite vortex filaments attached to the Kutta edges. The direction is specified by "fixed_direction_type".
+        
+        An iterative wake consists of segmented semi-infinite vortex filaments. These initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation.
 
         Parameters
         ----------
         type : str, optional
-            May be "custom", "freestream", "freestream_constrained", "freestream_and_rotation", or "freestream_and_rotation_constrained". Defaults to "freestream".
+            May be "fixed", "full_streamline", "relaxed", or "marching_streamline". Defaults to "fixed".
 
-        dir : list or ndarray, optional
-            Direction of the vortex filaments. Required for type "custom".
+        kutta_angle : float, optional
+            The angle threshold in degrees for determining which edges are Kutta edges. Defaults to 90.0.
 
-        normal_dir : list or ndarray, optional
-            Normal direction of the plane in which the direction of the vortex filaments should be constrained. Required for type "freestream_constrained" or "freestream_and_rotation_constrained".
-        """
+        check_freestream : bool, optional
+            Whether to include freestream information in the Kutta edge search. If True, a Kutta edge will only be specified between panels which satisfy the Kutta angle and and which have at least one of their normals at less than 90.0 to the freestream velocity (pointing towards the body). Defaults to True.
 
-        # Initialize wake
-        self.wake = StraightFixedWake(kutta_edges=self._kutta_edges, **kwargs)
+        fixed_direction_type : str, optional
+            May be "custom", "freestream", or "freestream_and_rotation". Defaults to "freestream_and_rotation".
 
-
-    def set_iterative_wake(self, **kwargs):
-        """Sets up an iterative wake consisting of segmented semi-infinite vortex filaments. Will initially be set in the direction of the local freestream vector resulting from the freestream velocity and rotation. This should be called before executing a solver on this mesh.
-
-        Parameters
-        ----------
-        type : str
-            May be "full_streamline", "relaxed", or "marching_streamline".
+        custom_dir : list or ndarray, optional
+            Direction of the vortex filaments. Only used if "fixed_direction_type" is "custom", and then it is required.
 
         N_segments : int, optional
-            Number of segments to use for each filament. Defaults to 20. If type is "marching_streamline", this number must match the number of wake iterations specified for the solver.
+            Number of segments to use for each filament. Defaults to 20. If type is "marching_streamline", this number determines number of wake iterations specified for the solver. Not required for type "fixed".
 
         segment_length : float, optional
-            Length of each discrete filament segment. Defaults to 1.0.
+            Length of each discrete filament segment. Defaults to 1.0. Not required for type "fixed".
 
         end_segment_infinite : bool, optional
-            Whether the final segment of the filament should be treated as infinite. Only used if type is "full_streamline" or "relaxed". Defaults to False.
+            Whether the final segment of the filament should be treated as infinite. Only used if type is "full_streamline" or "relaxed". Defaults to False. Not required for type "fixed".
 
         corrector_iterations : int, optional
-            How many times to correct the streamline (velocity) prediction for each segment. Defaults to 1. Required for "full_streamline" type.
+            How many times to correct the streamline (velocity) prediction for each segment within a streamline wake (not "relaxed" or "fixed"). Defaults to 1.
 
         K : float
-            Time stepping factor for shifting the filament vertices based on the local induced velocity and distance from the trailing edge.
+            Time stepping factor for shifting the filament vertices based on the local induced velocity and distance from the trailing edge. Only required for type "relaxed".
         """
 
-        # Get type
-        wake_type = kwargs.get("type")
-        if wake_type is None:
-            raise IOError("Kwarg 'type' is required for set_iterative_wake().")
+        # Find possible Kutta edges
+        self._initialize_kutta_search(**kwargs)
 
-        # Initialize wake
-        if wake_type == "full_streamline":
-            self.wake = FullStreamlineWake(kutta_edges=self._kutta_edges, **kwargs)
-        elif wake_type == "relaxed":
-            self.wake = VelocityRelaxedWake(kutta_edges=self._kutta_edges, **kwargs)
-        elif wake_type == "marching_streamline":
-            self.wake = MarchingStreamlineWake(kutta_edges=self._kutta_edges, **kwargs)
-        else:
-            raise IOError("{0} is not a valid wake type.".format(wake_type))
+        # Get type
+        self._wake_type = kwargs.get("type", "fixed")
+        if self._wake_type is None:
+            raise IOError("Kwarg 'type' is required for set_iterative_wake().")
+        self._wake_kwargs = copy.deepcopy(kwargs)
+
+        # A note to the developer: the actual wake object is initialized at the end of finalize_kutta_search(); really all that's done here is storage.
 
 
     def plot(self, **kwargs):
