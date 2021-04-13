@@ -141,14 +141,6 @@ class Solver:
                 for v_n in vec_inner(self._v, self._mesh.n):
                     print("{0:<20.12}".format(v_n), file=export_handle)
 
-            # Gradient of potential
-            if hasattr(self, "_grad_mu"):
-                print("VECTORS doublet_gradient float", file=export_handle)
-                for i in range(N_segments):
-                    print("0.0 0.0 0.0", file=export_handle)
-                for grad_mu in self._grad_mu:
-                    print("{0:<20.12} {1:<20.12} {2:<20.12}".format(grad_mu[0], grad_mu[1], grad_mu[2]), file=export_handle)
-
         if self._verbose:
             print()
             print("Case results successfully written to '{0}'.".format(filename))

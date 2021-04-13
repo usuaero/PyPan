@@ -125,8 +125,7 @@ class Mesh:
             # Initialize
             panel = Tri(v0=raw_mesh.v0[i],
                         v1=raw_mesh.v1[i],
-                        v2=raw_mesh.v2[i],
-                        n=raw_mesh.normals[i])
+                        v2=raw_mesh.v2[i])
 
             self.panels.append(panel)
 
@@ -137,9 +136,7 @@ class Mesh:
         self.n = np.zeros((self.N, 3))
         self.dA = np.zeros(self.N)
         for i in range(self.N):
-            self.cp[i] = self.panels[i].v_c
-            self.n[i] = self.panels[i].n
-            self.dA[i] = self.panels[i].A
+            self.n[i], self.dA[i], self.cp[i] = self.panels[i].get_info()
 
         # Get vertex list
         good_facets = [i for i in range(N) if i not in bad_facets]
@@ -166,6 +163,9 @@ class Mesh:
         curr_ind = 0
         cell_info = mesh_data.faces
         self._poly_list_size = len(cell_info)
+        self.cp = np.zeros((self.N, 3))
+        self.n = np.zeros((self.N, 3))
+        self.dA = np.zeros(self.N)
         for i in range(self.N):
 
             # Determine number of edges and vertex indices
@@ -186,7 +186,8 @@ class Mesh:
                                  v3=vertices[3])
 
             # Check for zero area
-            if abs(panel_obj.A)<1e-10:
+            self.n[i], self.dA[i], self.cp[i] = panel_obj.get_info()
+            if abs(self.dA[i])<1e-10:
                 raise IOError("Panel {0} in the mesh has zero area.".format(i))
             
             # Store
@@ -194,16 +195,6 @@ class Mesh:
 
             # Update index
             curr_ind += n+1
-
-        # Store panel information
-        self.N = len(self.panels)
-        self.cp = np.zeros((self.N, 3))
-        self.n = np.zeros((self.N, 3))
-        self.dA = np.zeros(self.N)
-        for i in range(self.N):
-            self.cp[i] = self.panels[i].v_c
-            self.n[i] = self.panels[i].n
-            self.dA[i] = self.panels[i].A
 
 
     def _rescale_3D_axes(self, ax):
@@ -378,7 +369,7 @@ class Mesh:
             prog = OneLineProgress(self.N, msg="Locating potential Kutta edges")
 
         # Get parameters
-        self._theta_K = np.radians(kwargs.get("kutta_angle", 90.0))
+        theta_K = np.radians(kwargs.get("kutta_angle", 90.0))
         self._check_freestream = kwargs.get("check_freestream", True)
 
         # Initialize edge storage
@@ -392,7 +383,7 @@ class Mesh:
             theta = np.abs(np.arccos(np.einsum('ik,jk->ij', self.n, self.n)))
 
         # Determine which panels have an angle greater than the Kutta angle
-        angle_greater = (theta>self._theta_K).astype(int)
+        angle_greater = (theta>theta_K).astype(int)
         i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
 
         # Loop through possible combinations
@@ -423,53 +414,59 @@ class Mesh:
             Freestream velocity vector (direction of the oncoming flow).
         """
 
-        if self._verbose:
-            print()
-            prog = OneLineProgress(len(self._potential_kutta_panels), msg="Finalizing Kutta edge locations")
-
-        # Loop through previously determined possibilities
-        for i,j in self._potential_kutta_panels:
-
-            # Get panel objects
-            panel_i = self.panels[i]
-            panel_j = self.panels[j]
-
-            # Check freestream condition
-            if not self._check_freestream or inner(panel_i.n, u_inf)>0 or inner(panel_j.n, u_inf)>0:
-            
-                # Get edge vertices
-                v0 = None
-                for ii, vi in enumerate(panel_i.vertices):
-                    for vj in panel_j.vertices:
-
-                        # Check distance
-                        d = norm(vi-vj)
-                        if d<1e-10:
-
-                            # Store first
-                            if v0 is None:
-                                v0 = vi
-                                ii0 = ii
-
-                            # Initialize edge object; vertices are stored in the same order as the first panel
-                            else:
-                                if ii-ii0 == 1: # Order is important for definition of circulation
-                                    self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
-                                else:
-                                    self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
-                                break
+        if len(self._potential_kutta_panels)>0:
 
             if self._verbose:
-                prog.display()
+                print()
+                prog = OneLineProgress(len(self._potential_kutta_panels), msg="Finalizing Kutta edge locations")
 
-        # Store number of edges
-        self.N_edges = len(self._kutta_edges)
+            # Loop through previously determined possibilities
+            for i,j in self._potential_kutta_panels:
+
+                # Get panel objects
+                panel_i = self.panels[i]
+                panel_j = self.panels[j]
+
+                # Check freestream condition
+                if not self._check_freestream or inner(self.n[i], u_inf)>0 or inner(self.n[i], u_inf)>0:
+                
+                    # Get edge vertices
+                    v0 = None
+                    for ii, vi in enumerate(panel_i.vertices):
+                        for vj in panel_j.vertices:
+
+                            # Check distance
+                            d = norm(vi-vj)
+                            if d<1e-10:
+
+                                # Store first
+                                if v0 is None:
+                                    v0 = vi
+                                    ii0 = ii
+
+                                # Initialize edge object; vertices are stored in the same order as the first panel
+                                else:
+                                    if ii-ii0 == 1: # Order is important for definition of circulation
+                                        self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                                    else:
+                                        self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
+                                    break
+
+                if self._verbose:
+                    prog.display()
+
+            # Store number of edges
+            self.N_edges = len(self._kutta_edges)
+
+        else:
+            self.N_edges = 0
+
         if self._verbose:
             print("    Found {0} Kutta edges.".format(self.N_edges))
 
         if self._verbose:
             print()
-            prog = OneLineProgress(2*self.N, msg="Locating panels for gradient calculation")
+            prog = OneLineProgress(self.N, msg="Locating panels for gradient calculation")
 
         # Store touching and abutting panels not across Kutta edge
         for i, panel in enumerate(self.panels):
@@ -494,6 +491,7 @@ class Mesh:
                 prog.display()
 
         # Store second abutting panels not across Kutta edge
+        # Note we're not tracking the progress of this loop. It's super fast.
         for i, panel in enumerate(self.panels):
             for j in panel.abutting_panels_not_across_kutta_edge:
 
@@ -505,14 +503,11 @@ class Mesh:
                     if k not in panel.second_abutting_panels_not_across_kutta_edge and k!=i:
                         panel.second_abutting_panels_not_across_kutta_edge.append(k)
 
-            if self._verbose:
-                prog.display()
-
         # Set up least-squares matrices
         self._set_up_lst_sq()
 
         # Initialize wake
-        try:
+        if self.N_edges>0:
             if self._wake_type == "fixed":
                 self.wake = StraightFixedWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
             elif self._wake_type == "full_streamline":
@@ -523,8 +518,6 @@ class Mesh:
                 self.wake = MarchingStreamlineWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
             else:
                 raise IOError("{0} is not a valid wake type.".format(wake_type))
-        except UnboundLocalError as e:
-            raise RuntimeError("Mesh '{0}' has no Kutta edges, so no wake can be set. Please properly specify a Kutta edge search before attempting to set a wake.".format(self.name)) from e
 
 
     def _set_up_lst_sq(self):
@@ -547,7 +540,7 @@ class Mesh:
                 neighbors = panel.touching_panels_not_across_kutta_edge
 
             # Get centroids of neighboring panels in local panel coordinates
-            dp = np.einsum('ij,kj->ki', panel.A_t, self.cp[neighbors]-panel.v_c[np.newaxis,:])
+            dp = np.einsum('ij,kj->ki', panel.A_t, self.cp[neighbors]-self.cp[i][np.newaxis,:])
 
             # Get basis functions
             dx = dp[:,0][:,np.newaxis]
@@ -654,7 +647,7 @@ class Mesh:
         # Plot centroids
         if kwargs.get("centroids", False):
             for i, panel in enumerate(self.panels):
-                ax.plot(panel.v_c[0], panel.v_c[1], panel.v_c[2], 'r.', label='Centroid' if i==0 else '')
+                ax.plot(self.cp[i][0], self.cp[i][1], self.cp[i][2], 'r.', label='Centroid' if i==0 else '')
 
         # Plot Kutta edges
         if kwargs.get("kutta_edges", True):

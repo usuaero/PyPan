@@ -13,28 +13,6 @@ class Panel:
 
     def __init__(self, **kwargs):
 
-        # Get normal vector
-        self.n = kwargs.get("n")
-        if self.n is None:
-            self._calc_normal()
-        else:
-            # Check normalization
-            if norm(self.n) != 0.0:
-                self.n = self.n/norm(self.n)
-
-        # Calculate panel plane projection matrix
-        self.P_surf = np.identity(3)-np.matmul(self.n, self.n)
-
-        # Determine area
-        self.A = kwargs.get("A", None)
-        if self.A is None:
-            self._calc_area()
-
-        # Determine centroid
-        self.v_c = kwargs.get("v_c", None)
-        if self.v_c is None:
-            self._calc_centroid()
-
         # Initialize some storage
         self.touching_panels = [] # Panels which share at least one vertex with this panel
         self.abutting_panels = [] # Panels which share two vertices with this panel
@@ -43,18 +21,36 @@ class Panel:
         self.second_abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel or its abutting panels where those two vertices do not define a Kutta edge
 
 
+    def get_info(self):
+        """Returns the panel normal, area, and centroid.
+
+        Returns
+        -------
+        ndarray
+            Normal vector.
+        
+        float
+            Panel area.
+
+        ndarray
+            Panel centroid.
+        """
+
+        return self._calc_normal(), self._calc_area(), self._calc_centroid()
+
+
     def _calc_normal(self):
         # Calculates the panel unit normal vector
         # Assumes the panel is planar
         d1 = self.vertices[1]-self.vertices[0]
         d2 = self.vertices[2]-self.vertices[1]
         N = cross(d1, d2)
-        self.n = N/norm(N)
+        return N/norm(N)
 
 
     def _calc_centroid(self):
         # Calculates the centroid of the panel
-        self.v_c = 1.0/self.N*np.sum(self.vertices, axis=0).flatten()
+        return 1.0/self.N*np.sum(self.vertices, axis=0).flatten()
 
 
     def get_ring_influence(self, points):
@@ -80,8 +76,12 @@ class Panel:
 
         # Calculate influence
         v = np.zeros_like(points)
-        for i in range(self.N):
-            v += vec_cross(r[i-1], r[i])*((r_mag[i-1]+r_mag[i])/(r_mag[i-1]*r_mag[i]*(r_mag[i-1]*r_mag[i]+vec_inner(r[i-1], r[i]))))[:,np.newaxis]
+        with np.errstate(divide='ignore'):
+            for i in range(self.N):
+                d = (r_mag[i-1]*r_mag[i]*(r_mag[i-1]*r_mag[i]+vec_inner(r[i-1], r[i])))
+                n = (r_mag[i-1]+r_mag[i])/d
+                n = np.nan_to_num(n, copy=False)
+                v += vec_cross(r[i-1], r[i])*n[:,np.newaxis]
 
         return 0.25/np.pi*v
 
@@ -114,23 +114,24 @@ class Quad(Panel):
         super().__init__(**kwargs)
 
         # Set up local coordinate transformation
+        n = self._calc_normal()
         self.A_t = np.zeros((3,3))
         self.A_t[0] = self.midpoints[1]-self.midpoints[0]
         self.A_t[0] /= norm(self.A_t[0])
-        self.A_t[1] = cross(self.n, self.A_t[0])
-        self.A_t[2] = self.n
+        self.A_t[1] = cross(n, self.A_t[0])
+        self.A_t[2] = n
 
 
     def _calc_area(self):
         # Calculates the panel area from the two constituent triangles
-        self.A = 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))
-        self.A += 0.5*norm(cross(self.vertices[2]-self.vertices[0], self.vertices[3]-self.vertices[0]))
+        A = 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))
+        return A + 0.5*norm(cross(self.vertices[2]-self.vertices[0], self.vertices[3]-self.vertices[0]))
 
 
     def _calc_normal(self):
         # Calculates the normal based off of the edge midpoints
-        self.n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
-        self.n /= norm(self.n)
+        n = cross(self.midpoints[1]-self.midpoints[0], self.midpoints[2]-self.midpoints[1])
+        return n/norm(n)
 
 
 class Tri(Panel):
@@ -149,34 +150,14 @@ class Tri(Panel):
         super().__init__(**kwargs)
 
         # Set up local coordinate transformation
+        n,_,_ = self.get_info()
         self.A_t = np.zeros((3,3))
         self.A_t[0] = self.vertices[1]-self.vertices[0]
         self.A_t[0] /= norm(self.A_t[0])
-        self.A_t[1] = cross(self.n, self.A_t[0])
-        self.A_t[2] = self.n
+        self.A_t[1] = cross(n, self.A_t[0])
+        self.A_t[2] = n
 
 
     def _calc_area(self):
         # Calculates the panel area
-        self.A = 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))
-
-
-    def __str__(self):
-        s = "P "+" ".join(["{:<20}"]*17)
-        s = s.format(self.vertices[0,0],
-                     self.vertices[0,1],
-                     self.vertices[0,2],
-                     self.vertices[1,0],
-                     self.vertices[1,1],
-                     self.vertices[1,2],
-                     self.vertices[2,0],
-                     self.vertices[2,1],
-                     self.vertices[2,2],
-                     self.n[0],
-                     self.n[1],
-                     self.n[2],
-                     self.v_c[0],
-                     self.v_c[1],
-                     self.v_c[2],
-                     self.A)
-        return s
+        return 0.5*norm(cross(self.vertices[1]-self.vertices[0], self.vertices[2]-self.vertices[0]))

@@ -33,9 +33,6 @@ class VortexRingSolver(Solver):
             if self._verbose:
                 prog.display()
 
-        # Determine panel part of A matrix
-        self._A_panels = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._mesh.n)
-
 
     def set_condition(self, **kwargs):
         """Sets the atmospheric conditions for the computation.
@@ -57,7 +54,6 @@ class VortexRingSolver(Solver):
         self._v_inf = np.array(kwargs["V_inf"])
         self._V_inf = norm(self._v_inf)
         self._u_inf = self._v_inf/self._V_inf
-        self._V_inf_2 = self._V_inf*self._V_inf
         self._rho = kwargs["rho"]
         self._omega = np.array(kwargs.get("angular_rate", [0.0, 0.0, 0.0]))
 
@@ -134,21 +130,21 @@ class VortexRingSolver(Solver):
         # Iterate on wake
         for i in range(wake_iterations+1):
             if self._verbose and not dont_iterate_on_wake:
-                print("\nWake Iteration {0}".format(i))
-                print("====================")
+                print("\nWake Iteration {0}/{1}".format(i, wake_iterations))
+                print("========================")
             if self._verbose:
                 print()
                 start_time = time.time()
                 print("    Solving singularity strengths (this may take a while)...", flush=True, end='')
 
             # Get wake influence matrix
-            self._wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
+            wake_influence_matrix = self._mesh.wake.get_influence_matrix(points=self._mesh.cp, u_inf=self._u_inf, omega=self._omega, N_panels=self._N_panels)
 
             # Specify A matrix
             A = np.zeros((self._N_panels+1,self._N_panels))
-            A[:-1] = self._A_panels
-            if not isinstance(self._wake_influence_matrix, float):
-                A[:-1] += np.einsum('ijk,ik->ij', self._wake_influence_matrix, self._mesh.n)
+            A[:-1] = np.einsum('ijk,ik->ij', self._panel_influence_matrix, self._mesh.n)
+            if not isinstance(wake_influence_matrix, float):
+                A[:-1] += np.einsum('ijk,ik->ij', wake_influence_matrix, self._mesh.n)
             A[-1] = 1.0
 
             # Specify b vector
@@ -163,6 +159,10 @@ class VortexRingSolver(Solver):
             # Singular value decomposition
             elif method == "svd":
                 self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+
+            # Clear up memory
+            del A
+            del b
 
             # Print computation results
             if self._verbose:
@@ -181,6 +181,10 @@ class VortexRingSolver(Solver):
                     print("        Rank of A matrix: {0}".format(rank))
                     print("        Max singular value of A: {0}".format(np.max(s_a)))
                     print("        Min singular value of A: {0}".format(np.min(s_a)))
+                    del s_a
+
+            # Clear up memory
+            del res
 
             if self._verbose:
                 print()
@@ -191,17 +195,17 @@ class VortexRingSolver(Solver):
             if self._verbose: prog.display()
 
             # Determine wake induced velocities
-            self._v += np.sum(self._wake_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
+            self._v += np.sum(wake_influence_matrix*self._mu[np.newaxis,:,np.newaxis], axis=1)
+            del wake_influence_matrix
             if self._verbose: prog.display()
 
             # Include doublet sheet principal value in the velocity
-            self._grad_mu = self._mesh.get_gradient(self._mu)
-            self._v -= 0.5*self._grad_mu
+            self._v -= 0.5*self._mesh.get_gradient(self._mu)
             if self._verbose: prog.display()
 
             # Determine coefficients of pressure
-            self._V = vec_norm(self._v)
-            self._C_P = 1.0-(self._V*self._V)/self._V_inf_2
+            V = vec_norm(self._v)
+            self._C_P = 1.0-(V*V)/self._V_inf**2
             if self._verbose: prog.display()
 
             # export vtk
@@ -213,7 +217,7 @@ class VortexRingSolver(Solver):
                 self._mesh.wake.update(self.get_velocity_induced_by_body, self._mu, self._v_inf, self._omega, self._verbose)
 
         # Determine force acting on each panel
-        self._dF = -(0.5*self._rho*self._V_inf_2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
+        self._dF = -(0.5*self._rho*self._V_inf**2*self._mesh.dA*self._C_P)[:,np.newaxis]*self._mesh.n
 
         # Sum force components (doing it component by component allows numpy to employ a more stable addition scheme)
         self._F = np.zeros(3)

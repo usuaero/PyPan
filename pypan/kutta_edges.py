@@ -65,4 +65,8 @@ class KuttaEdge:
         r1_mag = vec_norm(r1)
 
         # Calculate influence of bound segment
-        return 0.25*((r0_mag+r1_mag)/(np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1))))[:,np.newaxis]*vec_cross(r0, r1)
+        with np.errstate(divide='ignore'):
+            d = (np.pi*r0_mag*r1_mag*(r0_mag*r1_mag+vec_inner(r0, r1)))
+            n = 0.25*((r0_mag+r1_mag)/d)
+            n = np.nan_to_num(n, copy=False)
+            return n[:,np.newaxis]*vec_cross(r0, r1)

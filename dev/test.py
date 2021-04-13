@@ -36,15 +36,17 @@ if __name__=="__main__":
     if not os.path.isfile(pam_file):
         my_mesh.export_panel_adjacency_mapping(pam_file)
 
-    # Plot mesh
-    my_mesh.set_wake(type="fixed")
+    # Set wake
+    my_mesh.set_wake(type='fixed')
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[0.0, 0.0, -100.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
-    my_mesh.plot(panels=False)
+    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+
+    # Plot
+    #my_mesh.plot(panels=False)
 
     # Solve
     F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series")
