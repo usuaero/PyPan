@@ -370,39 +370,29 @@ class Mesh:
 
         # Get parameters
         theta_K = np.radians(kwargs.get("kutta_angle", 90.0))
+        C_theta = np.cos(theta_K)
         self._check_freestream = kwargs.get("check_freestream", True)
-
-        # Initialize edge storage
-        self._kutta_edges = []
 
         # Look for adjacent panels where the angle between their normals is greater than the Kutta angle
         self._potential_kutta_panels = []
 
-        # Get panel angles
-        with np.errstate(invalid='ignore'):
-            theta = np.abs(np.arccos(np.einsum('ik,jk->ij', self.n, self.n)))
-
-        # Determine which panels have an angle greater than the Kutta angle
-        angle_greater = (theta>theta_K).astype(int)
-        i_panels = np.argwhere(np.sum(angle_greater, axis=1).flatten()).flatten()
-
         # Loop through possible combinations
-        for i in i_panels:
-            panel_i = self.panels[i]
+        with np.errstate(invalid='ignore'):
+            for i, panel_i in enumerate(self.panels):
 
-            # Check abutting panels for Kutta angle
-            for j in panel_i.abutting_panels:
+                # Check abutting panels for Kutta angle
+                for j in panel_i.abutting_panels:
 
-                # Don't repeat
-                if j <= i:
-                    continue
+                    # Don't repeat
+                    if j <= i:
+                        continue
 
-                # Check angle
-                if angle_greater[i,j]:
-                    self._potential_kutta_panels.append([i,j])
+                    # Check angle
+                    if inner(self.n[i], self.n[j])<=C_theta:
+                        self._potential_kutta_panels.append([i,j])
 
-            if self._verbose:
-                prog.display()
+                if self._verbose:
+                    prog.display()
 
 
     def finalize_kutta_edge_search(self, u_inf):
@@ -413,6 +403,9 @@ class Mesh:
         u_inf : ndarray
             Freestream velocity vector (direction of the oncoming flow).
         """
+
+        # Initialize edge storage
+        self._kutta_edges = []
 
         if len(self._potential_kutta_panels)>0:
 
@@ -426,31 +419,64 @@ class Mesh:
                 # Get panel objects
                 panel_i = self.panels[i]
                 panel_j = self.panels[j]
-
-                # Check freestream condition
-                if not self._check_freestream or inner(self.n[i], u_inf)>0 or inner(self.n[i], u_inf)>0:
                 
-                    # Get edge vertices
-                    v0 = None
-                    for ii, vi in enumerate(panel_i.vertices):
-                        for vj in panel_j.vertices:
+                # Find first vertex shared by panels
+                found = False
+                for ii, vi in enumerate(panel_i.vertices):
+                    for jj, vj in enumerate(panel_j.vertices):
 
-                            # Check distance
-                            d = norm(vi-vj)
-                            if d<1e-10:
+                        # Check distance
+                        if norm(vi-vj)<1e-10:
 
-                                # Store first
-                                if v0 is None:
-                                    v0 = vi
-                                    ii0 = ii
+                            # Store first shared vertex
+                            v0 = vi
+                            ii0 = ii
+                            jj0 = jj
+                            found = True
+                            break
 
-                                # Initialize edge object; vertices are stored in the same order as the first panel
-                                else:
-                                    if ii-ii0 == 1: # Order is important for definition of circulation
-                                        self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
-                                    else:
-                                        self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
-                                    break
+                    if found:
+                        break
+
+                # Find second shared vertex; will be adjacent to first
+                poss_i_vert = [ii0-1, ii0+1]
+                poss_j_vert = [(jj0+1)%panel_j.N, jj0-1]
+                for i_same_dir, (ii, jj) in enumerate(zip(poss_i_vert, poss_j_vert)): # i_same_dir keeps track of if ii is still increasing
+                    vi = panel_i.vertices[ii]
+                    vj = panel_j.vertices[jj]
+
+                    # Check distance
+                    if norm(vi-vj)<1e-10:
+
+                        # See if we need to check the freestream condition
+                        is_kutta_edge = False
+                        if not self._check_freestream:
+                            is_kutta_edge = True
+
+                        # Get edge normals
+                        else:
+                            edge_normals_i = panel_i.get_edge_normals()
+                            edge_normals_j = panel_j.get_edge_normals()
+
+                            # Decide which edge to use
+                            if i_same_dir:
+                                i_edge = ii0
+                                j_edge = jj
+                            else:
+                                i_edge = ii
+                                j_edge = jj0
+
+                            # Check angle edge normals make with freestream
+                            if inner(edge_normals_i[i_edge], u_inf)>0.0 or inner(edge_normals_j[j_edge], u_inf)>0.0:
+                                is_kutta_edge = True
+
+                        # Store
+                        if is_kutta_edge:
+                            if ii-ii0 == 1: # Order is important for definition of circulation
+                                self._kutta_edges.append(KuttaEdge(v0, vi, [i, j]))
+                            else:
+                                self._kutta_edges.append(KuttaEdge(vi, v0, [i, j]))
+                            break
 
                 if self._verbose:
                     prog.display()

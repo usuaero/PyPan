@@ -17,7 +17,6 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
     #mesh_file = "dev/meshes/1250_sphere.vtk"
     mesh_file = "dev/meshes/F16_Original_withFins.vtk"
-    #mesh_file = "dev/meshes/cool_body_7000.stl"
 
     # Start timer
     start_time = time.time()
@@ -43,10 +42,10 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
-    #my_mesh.plot(panels=False)
+    my_mesh.plot(panels=False)
 
     # Solve
     F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series")

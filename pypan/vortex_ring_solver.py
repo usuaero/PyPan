@@ -78,7 +78,7 @@ class VortexRingSolver(Solver):
         Parameters
         ----------
         method : str, optional
-            Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation A*Ax=A*b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
+            Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation (A*)Ax=(A*)b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
             How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is equal to the number of filament segments in the wake and this setting is ignored. Defaults to 2.
@@ -153,8 +153,9 @@ class VortexRingSolver(Solver):
 
             # Direct method
             if method=='direct':
-                self._mu = np.linalg.solve(np.matmul(A.T, A), np.matmul(A.T, b[:,np.newaxis])).flatten()
-                res = np.matmul(A, self._mu[:,np.newaxis]).flatten()-b
+                b = np.matmul(A.T, b[:,np.newaxis])
+                A = np.matmul(A.T, A)
+                self._mu = np.linalg.solve(A, b).flatten()
 
             # Singular value decomposition
             elif method == "svd":
@@ -174,6 +175,7 @@ class VortexRingSolver(Solver):
                     print("        Maximum residual magnitude: {0}".format(np.max(np.abs(res))))
                     print("        Average residual magnitude: {0}".format(np.average(np.abs(res))))
                     print("        Median residual magnitude: {0}".format(np.median(np.abs(res))))
+                    del res
                 except:
                     pass
 
@@ -182,9 +184,6 @@ class VortexRingSolver(Solver):
                     print("        Max singular value of A: {0}".format(np.max(s_a)))
                     print("        Min singular value of A: {0}".format(np.min(s_a)))
                     del s_a
-
-            # Clear up memory
-            del res
 
             if self._verbose:
                 print()

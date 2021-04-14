@@ -86,6 +86,26 @@ class Panel:
         return 0.25/np.pi*v
 
 
+    def get_edge_normals(self):
+        """Calculates the vectors which point outward from the panel, in the (average) plane of the panel, normal to each edge.
+
+        Returns
+        -------
+        ndarray
+            Array of edge normal vectors.
+        """
+
+        # Get normal
+        n = self._calc_normal()
+
+        # Get edge tangents
+        t = np.roll(self.vertices, -1, axis=0)-self.vertices
+
+        # Get outward normals
+        n_out = vec_cross(t, n)
+        return n_out/vec_norm(n_out)[:,np.newaxis]
+
+
     @abstractmethod
     def _calc_area(self):
         pass
