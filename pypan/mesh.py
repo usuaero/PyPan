@@ -78,6 +78,8 @@ class Mesh:
             print("\nMesh Parameters:")
             print("    # panels: {0}".format(self.N))
             print("    # vertices: {0}".format(self._vertices.shape[0]))
+            print("    Max panel size: {0}".format(np.max(self.dA)))
+            print("    Min panel size: {0}".format(np.min(self.dA)))
 
     
     def _load_mesh(self, mesh_file):

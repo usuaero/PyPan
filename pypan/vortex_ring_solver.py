@@ -1,12 +1,29 @@
 import time
+import copy
 
 import numpy as np
+import multiprocessing as mp
 import matplotlib.pyplot as plt
 
 from pypan.solvers import Solver
 from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
 from pypan.helpers import OneLineProgress
 from pypan.wake import StraightFixedWake, MarchingStreamlineWake, FullStreamlineWake, VelocityRelaxedWake
+
+
+def get_panel_influences(args):
+    """Calculates the influence of each panel on each point."""
+
+    # Initialize storage
+    panels, points = args
+    inf_mat = np.zeros((len(points), len(panels), 3))
+    
+    # Loop through panels
+    for i, panel in enumerate(panels):
+        inf_mat[:,i,:] = panel.get_ring_influence(points)
+
+    return inf_mat
+
 
 class VortexRingSolver(Solver):
     """Vortex ring (doublet sheet) solver.
@@ -27,6 +44,24 @@ class VortexRingSolver(Solver):
             prog = OneLineProgress(self._N_panels, msg="Calculating panel influence matrix")
 
         # Create panel influence matrix; first index is the influenced panel, second is the influencing panel
+        #N_processes = 8
+        #with mp.Pool(processes=N_processes) as pool:
+        #    N_per_process = self._N_panels//N_processes
+        #    args = []
+        #    for i in range(N_processes):
+        #        if i<N_processes-1:
+        #            panels = self._mesh.panels[i*N_per_process:(i+1)*N_per_process]
+        #        else:
+        #            panels = self._mesh.panels[i*N_per_process:]
+        #        args.append((copy.deepcopy(panels), copy.deepcopy(self._mesh.cp)))
+
+        #    res = pool.map(get_panel_influences, args)
+        #    if self._verbose:
+        #        prog.display()
+
+        #self._panel_influence_matrix = np.concatenate(res, axis=1)
+        #if self._verbose:
+        #    prog.display()
         self._panel_influence_matrix = np.zeros((self._N_panels, self._N_panels, 3))
         for i, panel in enumerate(self._mesh.panels):
             self._panel_influence_matrix[:,i] = panel.get_ring_influence(self._mesh.cp)

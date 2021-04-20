@@ -45,10 +45,10 @@ if __name__=="__main__":
     my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
-    my_mesh.plot(panels=False)
+    #my_mesh.plot(panels=False)
 
     # Solve
-    F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series")
+    F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series", method='direct')
     print()
     print("F: ", F)
     print("M: ", M)
