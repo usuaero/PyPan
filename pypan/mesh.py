@@ -88,18 +88,23 @@ class Mesh:
         self._vertex_mapping_needed = True
 
         # STL
-        if "stl" in mesh_file or "STL" in mesh_file:
+        if ".stl" in mesh_file or ".STL" in mesh_file:
             self._load_stl(mesh_file)
             self._vertex_mapping_needed = False
 
         # VTK
-        elif "vtk" in mesh_file or "VTK" in mesh_file:
+        elif ".vtk" in mesh_file or ".VTK" in mesh_file:
             self._load_vtk(mesh_file)
+            self._vertex_mapping_needed = False
+
+        # .tri
+        elif ".tri" in mesh_file:
+            self._load_tri(mesh_file)
             self._vertex_mapping_needed = False
 
         # Unrecognized type
         else:
-            raise IOError("{0} is not a supported mesh type for PyPan.".format(mesh_file_type))
+            raise IOError("{0} is not a supported mesh type for PyPan.".format(mesh_file.split('.')[-1]))
 
 
     def _load_stl(self, stl_file):
@@ -197,6 +202,61 @@ class Mesh:
 
             # Update index
             curr_ind += n+1
+
+
+    def _load_tri(self, tri_file):
+        # Loads mesh from tri file
+
+        # Open file
+        with open(tri_file, 'r') as file_handle:
+
+            # Read number of panels and vertices
+            info = file_handle.readline().split()
+            N_vert = int(info[0])
+            self.N = int(info[1])
+            N = copy.copy(self.N)
+
+            # Initialize vertex storage
+            self._vertices = np.zeros((N_vert, 3))
+
+            # Get vertices
+            for i in range(N_vert):
+                line = file_handle.readline()
+                self._vertices[i] = np.array([float(val) for val in line.split()])
+
+            # Loop through panels and initialize objects
+            self.panels = []
+            self._panel_vertex_indices = []
+            for i in range(N):
+
+                # Determine vertex indices
+                line = file_handle.readline()
+                vertex_ind = [int(val)-1 for val in line.split()] # -1 is there to switch to zero-based indexing
+                self._panel_vertex_indices.append([3, *vertex_ind])
+
+                # Initialize panel object
+                vertices = self._vertices[vertex_ind]
+                panel = Tri(v0=vertices[0],
+                            v1=vertices[1],
+                            v2=vertices[2])
+
+                # Check for finite area
+                if panel.get_info()[1] == 0.0:
+                    self.N -= 1
+                    warnings.warn("Panel {0} has zero area. Skipping...".format(i))
+                    bad_facets.append(i)
+                    continue
+
+                self.panels.append(panel)
+
+            self.panels = np.array(self.panels)
+
+            # Store panel information
+            self.cp = np.zeros((self.N, 3))
+            self.n = np.zeros((self.N, 3))
+            self.dA = np.zeros(self.N)
+            for i in range(self.N):
+                self.n[i], self.dA[i], self.cp[i] = self.panels[i].get_info()
 
 
     def _rescale_3D_axes(self, ax):
@@ -653,6 +713,9 @@ class Mesh:
         kutta_edges : bool, optional
             Whether to display the edges at which the Kutta condition will be enforced. Defaults to True.
         """
+
+        print()
+        print("Plotting...")
 
         # Set up plot
         fig = plt.figure(figsize=plt.figaspect(1.0))

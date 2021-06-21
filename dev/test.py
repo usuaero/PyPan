@@ -11,12 +11,13 @@ if __name__=="__main__":
     # Load mesh
     #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
+    mesh_file = "dev/meshes/demo.tri"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
     #mesh_file = "dev/meshes/1250_sphere.vtk"
-    mesh_file = "dev/meshes/F16_Original_withFins.vtk"
+    #mesh_file = "dev/meshes/F16_Original_withFins.vtk"
 
     # Start timer
     start_time = time.time()
@@ -36,19 +37,20 @@ if __name__=="__main__":
         my_mesh.export_panel_adjacency_mapping(pam_file)
 
     # Set wake
-    my_mesh.set_wake(type='fixed')
+    my_mesh.set_wake(type='full_streamline')
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[0.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
-    #my_mesh.plot(panels=False)
+    my_mesh.plot(panels=True)
 
     # Solve
-    F, M = my_solver.solve(verbose=True, wake_iterations=3, export_wake_series=True, wake_series_title="dev/results/test_series", method='direct')
+    results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
+    F, M = my_solver.solve(verbose=True, wake_iterations=2, export_wake_series=True, wake_series_title=results_file.replace(".vtk", "_series"), method='direct')
     print()
     print("F: ", F)
     print("M: ", M)
@@ -56,7 +58,7 @@ if __name__=="__main__":
     print("Min C_P: ", np.min(my_solver._C_P))
 
     # Export results as VTK
-    my_solver.export_vtk(mesh_file.replace("meshes", "results").replace("stl", "vtk"))
+    my_solver.export_vtk(results_file)
 
     print()
     print("Total execution time: {0} s".format(time.time()-start_time))
