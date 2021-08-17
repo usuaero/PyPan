@@ -77,7 +77,7 @@ class Mesh:
         if self._verbose:
             print("\nMesh Parameters:")
             print("    # panels: {0}".format(self.N))
-            print("    # vertices: {0}".format(self._vertices.shape[0]))
+            print("    # vertices: {0}".format(self.vertices.shape[0]))
             print("    Max panel size: {0}".format(np.max(self.dA)))
             print("    Min panel size: {0}".format(np.min(self.dA)))
 
@@ -148,7 +148,7 @@ class Mesh:
         # Get vertex list
         good_facets = [i for i in range(N) if i not in bad_facets]
         raw_vertices = np.concatenate((raw_mesh.v0[good_facets], raw_mesh.v1[good_facets], raw_mesh.v2[good_facets]))
-        self._vertices, inverse_indices = np.unique(raw_vertices, return_inverse=True, axis=0)
+        self.vertices, inverse_indices = np.unique(raw_vertices, return_inverse=True, axis=0)
         self._panel_vertex_indices = []
         for i in range(self.N):
             self._panel_vertex_indices.append([3, *inverse_indices[i::self.N]])
@@ -161,7 +161,7 @@ class Mesh:
         mesh_data = pv.read(vtk_file)
 
         # Get vertices
-        self._vertices = np.copy(mesh_data.points)
+        self.vertices = np.copy(mesh_data.points)
 
         # Initialize panels
         self.panels = []
@@ -179,7 +179,7 @@ class Mesh:
             n = cell_info[curr_ind]
             vertex_ind = cell_info[curr_ind+1:curr_ind+1+n]
             self._panel_vertex_indices.append([n, *list(vertex_ind)])
-            vertices = self._vertices[vertex_ind]
+            vertices = self.vertices[vertex_ind]
 
             # Initialize panel object
             if n==3:
@@ -217,12 +217,12 @@ class Mesh:
             N = copy.copy(self.N)
 
             # Initialize vertex storage
-            self._vertices = np.zeros((N_vert, 3))
+            self.vertices = np.zeros((N_vert, 3))
 
             # Get vertices
             for i in range(N_vert):
                 line = file_handle.readline()
-                self._vertices[i] = np.array([float(val) for val in line.split()])
+                self.vertices[i] = np.array([float(val) for val in line.split()])
 
             # Loop through panels and initialize objects
             self.panels = []
@@ -235,7 +235,7 @@ class Mesh:
                 self._panel_vertex_indices.append([3, *vertex_ind])
 
                 # Initialize panel object
-                vertices = self._vertices[vertex_ind]
+                vertices = self.vertices[vertex_ind]
                 panel = Tri(v0=vertices[0],
                             v1=vertices[1],
                             v2=vertices[2])
@@ -305,7 +305,7 @@ class Mesh:
             prog = OneLineProgress(self.N, msg="Determining panel->vertex mapping")
 
         # Collect vertices and panel vertex indices
-        self._vertices = []
+        self.vertices = []
         self._panel_vertex_indices = [] # First index is the number of vertices, the rest are the vertex indices
         self._poly_list_size = 0
 
@@ -323,11 +323,11 @@ class Mesh:
 
             # Check if vertices are in the list
             for vertex in panel.vertices:
-                ind = self._check_for_vertex(vertex, self._vertices)
+                ind = self._check_for_vertex(vertex, self.vertices)
 
                 # Not in list
                 if ind == -1:
-                    self._vertices.append(vertex)
+                    self.vertices.append(vertex)
                     panel_info.append(i)
                     i += 1
 
@@ -340,7 +340,7 @@ class Mesh:
             if self._verbose:
                 prog.display()
 
-        self._vertices = np.array(self._vertices) # Cannot do this for _panel_vertex_indices because the length of each list element is not necessarily the same
+        self.vertices = np.array(self.vertices) # Cannot do this for _panel_vertex_indices because the length of each list element is not necessarily the same
 
 
     def _determine_panel_adjacency_mapping(self, **kwargs):
@@ -822,7 +822,7 @@ class Mesh:
     def get_vtk_data(self):
         """Returns a list of vertices and a list of indices referencing each panel to its vertices in the first list.
         """
-        return self._vertices, self._panel_vertex_indices
+        return self.vertices, self._panel_vertex_indices
 
 
     def get_gradient(self, phi):

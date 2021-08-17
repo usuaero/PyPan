@@ -11,8 +11,8 @@ if __name__=="__main__":
     # Load mesh
     #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
-    #mesh_file = "dev/meshes/demo.tri"
-    mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
+    mesh_file = "dev/meshes/demo.tri"
+    #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
@@ -43,15 +43,14 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
-    #my_mesh.plot(panels=True)
+    my_mesh.plot(panels=True)
 
     # Solve
-    #results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
-    results_file = "dev/results/swept_wing_high_grid_altered_vel.vtk"
-    F, M = my_solver.solve(verbose=True, wake_iterations=2)#, export_wake_series=True, wake_series_title=results_file.replace(".vtk", "_series"), method='direct')
+    results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
+    F, M = my_solver.solve(verbose=True, wake_iterations=2, export_wake_series=True, wake_series_title=results_file.replace(".vtk", "_series"), method='direct')
     print()
     print("F: ", F)
     print("M: ", M)
