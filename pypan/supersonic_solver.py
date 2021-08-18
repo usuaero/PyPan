@@ -30,6 +30,7 @@ class SupersonicSolver(Solver):
 
         # Initialize a few things
         self._verts_in_dod = np.zeros((self._N_vert, self._N_vert), dtype=bool)
+        self._verts_in_dod_brute_force = np.zeros((self._N_vert, self._N_vert), dtype=bool)
         self._dod_is_calculated = np.zeros(self._N_vert, dtype=bool)
 
 
@@ -66,6 +67,10 @@ class SupersonicSolver(Solver):
         # Run domain of dependence searches
         self._run_dod_recursive_search()
         self._run_dod_brute_force_search()
+
+        # Check dod searches got the same result
+        mismatch = np.argwhere(self._verts_in_dod != self._verts_in_dod_brute_force)
+        print(mismatch)
 
 
     def _run_dod_recursive_search(self):
@@ -173,6 +178,6 @@ class SupersonicSolver(Solver):
             for j in range(self._N_vert):
 
                 # Check if in dod
-                self._verts_in_dod[i,j] = self._in_dod(self._mesh.vertices[i], self._mesh.vertices[j])
+                self._verts_in_dod_brute_force[i,j] = self._in_dod(self._mesh.vertices[i], self._mesh.vertices[j])
 
             if self._verbose: prog.display()

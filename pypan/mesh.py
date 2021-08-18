@@ -212,20 +212,21 @@ class Mesh:
 
             # Read number of panels and vertices
             info = file_handle.readline().split()
-            N_vert = int(info[0])
+            self.N_vert = int(info[0])
             self.N = int(info[1])
             N = copy.copy(self.N)
 
             # Initialize vertex storage
-            self.vertices = np.zeros((N_vert, 3))
+            self.vertices = np.zeros((self.N_vert, 3))
 
             # Get vertices
-            for i in range(N_vert):
+            for i in range(self.N_vert):
                 line = file_handle.readline()
-                self.vertices[i] = np.array([float(val) for val in line.split()])
+                self.vertices[i] = np.array([float(val) for val in line.split()[:3]])
 
             # Loop through panels and initialize objects
             self.panels = []
+            bad_facets = []
             self._panel_vertex_indices = []
             for i in range(N):
 
@@ -705,7 +706,10 @@ class Mesh:
         Parameters
         ----------
         panels : bool, optional
-            Whether to display panels. Defaults to True.
+            Whether to display panels. Defaults to False.
+
+        vertices : bool, optional
+            Whether to display vertices. Defaults to True.
 
         centroids : bool, optional
             Whether to display centroids. Defaults to False.
@@ -721,12 +725,17 @@ class Mesh:
         fig = plt.figure(figsize=plt.figaspect(1.0))
         ax = fig.gca(projection='3d')
         
-        # Plot vertices
-        if kwargs.get("panels", True):
+        # Plot panel outlines
+        if kwargs.get("panels", False):
             for i, panel in enumerate(self.panels):
                 n_vert = panel.vertices.shape[1]
                 ind = [x%n_vert for x in range(n_vert+1)]
-                ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-', label='Panel' if i==0 else '')
+                ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-')
+        
+        # Plot vertices
+        if kwargs.get("panels", True):
+            for i, vertex in enumerate(self.vertices):
+                ax.plot(vertex[0], vertex[1], vertex[2], 'g.')
         
         ## Plot adjacency
         #ind = 0
@@ -738,18 +747,20 @@ class Mesh:
         # Plot centroids
         if kwargs.get("centroids", False):
             for i, panel in enumerate(self.panels):
-                ax.plot(self.cp[i][0], self.cp[i][1], self.cp[i][2], 'r.', label='Centroid' if i==0 else '')
+                ax.plot(self.cp[i][0], self.cp[i][1], self.cp[i][2], 'r.')
 
         # Plot Kutta edges
-        if kwargs.get("kutta_edges", True):
-            for i, edge in enumerate(self._kutta_edges):
-                ax.plot(edge.vertices[:,0], edge.vertices[:,1], edge.vertices[:,2], 'b', label='Kutta Edge' if i==0 else '')
+        try:
+            if kwargs.get("kutta_edges", True):
+                for i, edge in enumerate(self._kutta_edges):
+                    ax.plot(edge.vertices[:,0], edge.vertices[:,1], edge.vertices[:,2], 'b')
+        except AttributeError:
+            warnings.warn("Mesh has no Kutta edges, and so they cannot be plotted.")
 
         ax.set_xlabel('x')
         ax.set_ylabel('y')
         ax.set_zlabel('z')
         self._rescale_3D_axes(ax)
-        plt.legend()
         plt.show()
 
 
