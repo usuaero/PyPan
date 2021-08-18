@@ -2,6 +2,7 @@ import time
 import stl
 import warnings
 import copy
+import os
 
 import numpy as np
 import pyvista as pv
@@ -354,7 +355,7 @@ class Mesh:
         if adjacency_file is not None:
             
             # Try to find file
-            try:
+            if os.path.exists(adjacency_file):
                 with open(adjacency_file, 'r') as adj_handle:
 
                     # Get lines
@@ -365,7 +366,7 @@ class Mesh:
                     if len(lines)%2 != 0:
                         raise IOError("Data error in {0}. Should have two lines for each panel!".format(adjacency_file))
                     if len(lines)//2 != self.N:
-                        raise IOError("Data error in {0}. Mesh has {0} panels. File describes mapping for {2} panels.".format(adjacency_file, self.N, len(lines)//2))
+                        raise IOError("Data error in {0}. Mesh has {1} panels. File describes mapping for {2} panels.".format(adjacency_file, self.N, len(lines)//2))
 
                     # Loop through lines to store mapping
                     for i, line in enumerate(lines):
@@ -384,7 +385,7 @@ class Mesh:
 
                 not_determined = False
 
-            except OSError:
+            else:
                 warnings.warn("Adjacency file not found as specified. Reverting to brute force determination.")
 
         # Brute force approach

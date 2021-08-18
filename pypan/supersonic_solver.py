@@ -117,6 +117,7 @@ class SupersonicSolver(Solver):
 
                         # Get its dod
                         self._verts_in_dod[ind,:] |= self._get_dod(upstream_ind, j, depth+1)
+                        #self._get_dod(upstream_ind, j, depth+1)
 
         return self._verts_in_dod[ind,:]
 
