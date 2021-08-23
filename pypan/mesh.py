@@ -15,6 +15,7 @@ from pypan.helpers import OneLineProgress
 from pypan.panels import Tri, Quad
 from pypan.wake import Wake, StraightFixedWake, FullStreamlineWake, VelocityRelaxedWake, MarchingStreamlineWake
 from pypan.kutta_edges import KuttaEdge
+from pypan.vertices import Vertex
 
 
 class Mesh:
@@ -60,11 +61,6 @@ class Mesh:
             end_time = time.time()
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
 
-        # Create panel vertex mapping
-        # VTK does this inherently; STL has a faster way than the brute-force method
-        if self._vertex_mapping_needed:
-            self._determine_panel_vertex_mapping()
-
         # Determine panel adjacency mapping
         self._determine_panel_adjacency_mapping(**kwargs)
 
@@ -106,6 +102,16 @@ class Mesh:
         # Unrecognized type
         else:
             raise IOError("{0} is not a supported mesh type for PyPan.".format(mesh_file.split('.')[-1]))
+
+        # Create panel vertex mapping
+        if self._vertex_mapping_needed:
+            self._determine_panel_vertex_mapping()
+
+        # Initialize vertices (same for all types)
+        self.N_vert = len(self.vertices)
+        self.vertex_objects = np.empty(self.N_vert, dtype=Vertex)
+        for i, vertex in enumerate(self.vertices):
+            self.vertex_objects[i] = Vertex(vertex)
 
 
     def _load_stl(self, stl_file):
@@ -301,6 +307,7 @@ class Mesh:
 
     def _determine_panel_vertex_mapping(self):
         # Creates a list of all unique vertices and maps each panel to those vertices
+        # This is a brute-force approach; avoid it if you can.
 
         if self._verbose:
             print()

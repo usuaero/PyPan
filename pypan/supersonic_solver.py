@@ -70,7 +70,7 @@ class SupersonicSolver(Solver):
 
         # Check dod searches got the same result
         mismatch = np.argwhere(self._verts_in_dod != self._verts_in_dod_brute_force)
-        print(mismatch)
+        print("Searches disagree for {0} influences.".format(len(mismatch)))
 
 
     def _run_dod_recursive_search(self):
@@ -84,42 +84,47 @@ class SupersonicSolver(Solver):
         x_c = vec_inner(self._mesh.vertices, self._c_0)
         self._sorted_ind = np.argsort(x_c)
 
-        # Run recursive search
+        # Run recursive search, beginning at most downstream point and heading upstream
         for i, vert_ind in enumerate(self._sorted_ind):
 
             # Check if it's already been calculated
             if not self._dod_is_calculated[vert_ind]:
 
                 # Call recursive function
-                self._verts_in_dod[vert_ind,:] = self._get_dod(vert_ind, i, 0)
+                self._calc_dod(vert_ind, i)
 
             if self._verbose: prog.display()
 
+        ## Reorganize dod matrix
+        #reorder_ind = np.argsort(self._sorted_ind)
+        #self._verts_in_dod = self._verts_in_dod[reorder_ind,reorder_ind]
 
-    def _get_dod(self, ind, i, depth):
+
+    def _calc_dod(self, ind, i):
         # Returns the domain of dependence for the vertex with index ind, which is the i-th sorted index
 
         # Check if it's already been calculated
         if not self._dod_is_calculated[ind]:
 
             # Loop through upstream vertices
-            for j, upstream_ind in enumerate(self._sorted_ind[i+1::]):
-                j = j+i+1
+            for j in range(i+1, self._N_vert):
+                upstream_ind = self._sorted_ind[j]
 
                 # Check if it's already in dod
-                if not self._verts_in_dod[ind, upstream_ind]:
+                if not self._verts_in_dod[ind,upstream_ind]:
 
                     # Check if it's in the dod
                     if self._in_dod_upstream(self._mesh.vertices[ind], self._mesh.vertices[upstream_ind]):
 
                         # Add to dod
-                        self._verts_in_dod[ind, upstream_ind] = True
+                        self._verts_in_dod[ind,upstream_ind] = True
 
                         # Get its dod
-                        self._verts_in_dod[ind,:] |= self._get_dod(upstream_ind, j, depth+1)
-                        #self._get_dod(upstream_ind, j, depth+1)
+                        self._calc_dod(upstream_ind, j)
+                        self._verts_in_dod[ind,:] |= self._verts_in_dod[upstream_ind,:]
 
-        return self._verts_in_dod[ind,:]
+        # Store that the calculation has been performed
+        self._dod_is_calculated[ind] = True
 
 
     def _in_dod_upstream(self, r0, r1):

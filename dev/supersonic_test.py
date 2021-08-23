@@ -13,8 +13,8 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
     #mesh_file = "dev/meshes/demo.tri"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
-    mesh_file = "dev/meshes/F-22.tri"
-    #mesh_file = "dev/meshes/supersonic_wing_body.vtk"
+    #mesh_file = "dev/meshes/F-22.tri"
+    mesh_file = "dev/meshes/supersonic_wing_body.vtk"
     #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
@@ -48,7 +48,7 @@ if __name__=="__main__":
     my_solver.set_condition(M=1.6)
 
     # Plot
-    my_mesh.plot(kutta_edges=False)
+    #my_mesh.plot(kutta_edges=False)
 
     print()
     print("Total execution time: {0} s".format(time.time()-start_time))
