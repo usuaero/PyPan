@@ -65,12 +65,15 @@ class SupersonicSolver(Solver):
         self._mu = np.arccos(self._C_mu)
 
         # Run domain of dependence searches
-        self._run_dod_recursive_search()
-        self._run_dod_brute_force_search()
+        self._recursive_time = self._run_dod_recursive_search()
+        self._brute_force_time = self._run_dod_brute_force_search()
 
         # Check dod searches got the same result
         mismatch = np.argwhere(self._verts_in_dod != self._verts_in_dod_brute_force)
         print("Searches disagree for {0} influences.".format(len(mismatch)))
+        if mismatch != 0:
+            print("    Recursive search found {0} influences.".format(np.sum(np.sum(self._verts_in_dod)).item()))
+            print("    Brute force search found {0} influences.".format(np.sum(np.sum(self._verts_in_dod_brute_force)).item()))
 
 
     def _run_dod_recursive_search(self):
@@ -98,6 +101,7 @@ class SupersonicSolver(Solver):
         ## Reorganize dod matrix
         #reorder_ind = np.argsort(self._sorted_ind)
         #self._verts_in_dod = self._verts_in_dod[reorder_ind,reorder_ind]
+        return prog.run_time.total_seconds()
 
 
     def _calc_dod(self, ind, i):
@@ -187,3 +191,5 @@ class SupersonicSolver(Solver):
                 self._verts_in_dod_brute_force[i,j] = self._in_dod(self._mesh.vertices[i], self._mesh.vertices[j])
 
             if self._verbose: prog.display()
+
+        return prog.run_time.total_seconds()

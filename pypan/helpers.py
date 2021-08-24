@@ -17,6 +17,7 @@ class OneLineProgress():
         self.roll_timer = dt.now()
         self.roll_count = -1
         self.roll_delta = 0.2
+        self.run_time = 0.0
         self.display()
     
     def increment(self):
@@ -81,7 +82,8 @@ class OneLineProgress():
             etr = '-:--:--.------'
             s += ' '*4 + 'ETR = {}'.format(etr)
         elif perc >= 100.:
-            s += ' '*4 + 'Run Time {}'.format(dt.now()-self.start) + '\n'
+            self.run_time = dt.now()-self.start
+            s += ' '*4 + 'Run Time {}'.format(self.run_time) + '\n'
         else:
             time = (dt.now()-self.start).total_seconds()
             etr = td(seconds=time / perc * 100. - time)
