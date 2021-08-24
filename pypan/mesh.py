@@ -111,7 +111,7 @@ class Mesh:
         self.N_vert = len(self.vertices)
         self.vertex_objects = np.empty(self.N_vert, dtype=Vertex)
         for i, vertex in enumerate(self.vertices):
-            self.vertex_objects[i] = Vertex(vertex)
+            self.vertex_objects[i] = Vertex(vertex, self.N_vert)
 
 
     def _load_stl(self, stl_file):

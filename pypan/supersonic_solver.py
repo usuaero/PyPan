@@ -64,16 +64,23 @@ class SupersonicSolver(Solver):
         self._C_mu = self._B/self._M
         self._mu = np.arccos(self._C_mu)
 
+        # Reset domains of dependence
+        for vertex in self._mesh.vertex_objects:
+            vertex.dod_list = []
+            vertex.dod_array[:] = False
+
         # Run domain of dependence searches
         self._recursive_time = self._run_dod_recursive_search()
         self._brute_force_time = self._run_dod_brute_force_search()
 
         # Check dod searches got the same result
+        for i in range(self._N_vert):
+            self._verts_in_dod[i] = self._mesh.vertex_objects[i].dod_array
         mismatch = np.argwhere(self._verts_in_dod != self._verts_in_dod_brute_force)
-        print("Searches disagree for {0} influences.".format(len(mismatch)))
-        if mismatch != 0:
-            print("    Recursive search found {0} influences.".format(np.sum(np.sum(self._verts_in_dod)).item()))
-            print("    Brute force search found {0} influences.".format(np.sum(np.sum(self._verts_in_dod_brute_force)).item()))
+        print("Searches disagree for {0} dependencies.".format(len(mismatch)))
+        if len(mismatch) != 0:
+            print("    Recursive search found {0} dependencies.".format(np.sum(np.sum(self._verts_in_dod)).item()))
+            print("    Brute force search found {0} dependencies.".format(np.sum(np.sum(self._verts_in_dod_brute_force)).item()))
 
 
     def _run_dod_recursive_search(self):
@@ -81,7 +88,7 @@ class SupersonicSolver(Solver):
 
         if self._verbose:
             print()
-            prog = OneLineProgress(self._N_vert, msg="Running recursive domain of dependence search")
+            prog = OneLineProgress(self._N_vert, msg="Running recursive DoD search")
 
         # Sort vertices in compressibility direction, from most downstream to most upstream
         x_c = vec_inner(self._mesh.vertices, self._c_0)
@@ -98,9 +105,6 @@ class SupersonicSolver(Solver):
 
             if self._verbose: prog.display()
 
-        ## Reorganize dod matrix
-        #reorder_ind = np.argsort(self._sorted_ind)
-        #self._verts_in_dod = self._verts_in_dod[reorder_ind,reorder_ind]
         return prog.run_time.total_seconds()
 
 
@@ -115,20 +119,28 @@ class SupersonicSolver(Solver):
                 upstream_ind = self._sorted_ind[j]
 
                 # Check if it's already in dod
-                if not self._verts_in_dod[ind,upstream_ind]:
+                if not self._mesh.vertex_objects[ind].dod_array[upstream_ind]:
 
                     # Check if it's in the dod
                     if self._in_dod_upstream(self._mesh.vertices[ind], self._mesh.vertices[upstream_ind]):
 
                         # Add to dod
-                        self._verts_in_dod[ind,upstream_ind] = True
+                        self._mesh.vertex_objects[ind].dod_array[upstream_ind] = True
+                        self._mesh.vertex_objects[ind].dod_list.append(upstream_ind)
 
                         # Get its dod
                         self._calc_dod(upstream_ind, j)
-                        self._verts_in_dod[ind,:] |= self._verts_in_dod[upstream_ind,:]
+                        #upstream_points = self._mesh.vertex_objects[upstream_ind].dod_list
 
-        # Store that the calculation has been performed
-        self._dod_is_calculated[ind] = True
+                        # Update current dod
+                        for upstream_point in self._mesh.vertex_objects[upstream_ind].dod_list:
+                            if not self._mesh.vertex_objects[ind].dod_array[upstream_point]:
+                                self._mesh.vertex_objects[ind].dod_array[upstream_point] = True
+                                self._mesh.vertex_objects[ind].dod_list.append(upstream_point)
+                        #self._verts_in_dod[ind,self._sorted_ind[upstream_ind+1:]] |= self._verts_in_dod[upstream_ind,self._sorted_ind[upstream_ind+1:]]
+
+            # Store that the calculation has been performed
+            self._dod_is_calculated[ind] = True
 
 
     def _in_dod_upstream(self, r0, r1):
@@ -182,7 +194,7 @@ class SupersonicSolver(Solver):
         
         if self._verbose:
             print()
-            prog = OneLineProgress(self._N_vert, msg="Running brute force domain of dependence search")
+            prog = OneLineProgress(self._N_vert, msg="Running brute force DoD search")
 
         for i in range(self._N_vert):
             for j in range(self._N_vert):

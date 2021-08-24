@@ -1,4 +1,3 @@
-# This script is for me to test the functionality of whatever I'm working on at the moment.
 import machupX as MX
 import pypan as pp
 import json
@@ -43,7 +42,7 @@ if __name__=="__main__":
                            [0.2, 45.0],
                            [1.0, 45.0]],
                 "grid" : {
-                    "N" : 30,
+                    "N" : 10,
                 },
                 "CAD_options" :{
                     "round_wing_tip" : True,
@@ -83,5 +82,5 @@ if __name__=="__main__":
     }
     scene = MX.Scene()
     scene.add_aircraft("plane", airplane_dict, state=state)
-    stl_file = "dev/meshes/supersonic_wing_body.stl"
-    scene.export_stl(filename=stl_file, section_resolution=41)
+    stl_file = "dev/meshes/supersonic_wing_body_ultra_low_res.stl"
+    scene.export_stl(filename=stl_file, section_resolution=15)

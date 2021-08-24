@@ -15,12 +15,14 @@ class Vertex:
     r : list
         Coordinates of vertex.
 
+    N_vert : int
+        Total number of vertices in the mesh this vertex belongs to.
     """
 
-    def __init__(self, r):
+    def __init__(self, r, N_vert):
 
         # Store vertex
         self.r = copy.deepcopy(r)
         self.phi = 0.0
-        self.dod = []
-        self.dod_calculated = False
+        self.dod_list = []
+        self.dod_array = np.zeros(N_vert, dtype=bool)
