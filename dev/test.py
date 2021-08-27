@@ -37,7 +37,7 @@ if __name__=="__main__":
         my_mesh.export_panel_adjacency_mapping(pam_file)
 
     # Set wake
-    my_mesh.set_wake(type='freestream')
+    my_mesh.set_wake(type='fixed')
 
     # Initialize solver
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
@@ -59,6 +59,9 @@ if __name__=="__main__":
 
     # Export results as VTK
     my_solver.export_vtk(results_file)
+
+    # Export potential
+    my_solver.export_potential('dev/results/potential.vtk', verbose=True, res=[10, 10, 10], buffers=[1.0, 1.0, 30.0])
 
     print()
     print("Total execution time: {0} s".format(time.time()-start_time))

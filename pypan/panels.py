@@ -14,6 +14,7 @@ class Panel:
     def __init__(self, **kwargs):
 
         # Initialize some storage
+        self.vertices = []
         self.touching_panels = [] # Panels which share at least one vertex with this panel
         self.abutting_panels = [] # Panels which share two vertices with this panel
         self.touching_panels_not_across_kutta_edge = [] # Panels which share at least one vertex with this panel where those two vertices do not define a Kutta edge
@@ -54,15 +55,12 @@ class Panel:
 
 
     def get_ring_influence(self, points):
-        """Determines the velocity vector induced by this panel at arbitrary
-        points, assuming a vortex ring (0th order) model and a unit positive
-        vortex strength.
+        """Determines the velocity vector induced by this panel at arbitrary points, assuming a vortex ring (0th order) model and a unit positive vortex strength.
 
         Parameters
         ----------
         points : ndarray
-            An array of points where the first index is the point index and 
-            the second index is the coordinate.
+            An array of points where the first index is the point index and the second index is the coordinate.
 
         Returns
         -------
@@ -84,6 +82,38 @@ class Panel:
                 v += vec_cross(r[i-1], r[i])*n[:,np.newaxis]
 
         return 0.25/np.pi*v
+
+
+    def get_ring_potential(self, points):
+        """Determines the velocity potential induced by this panel at arbitrary points, assuming a vortex ring (0th order) model and a unit positive vortex strength.
+
+        Parameters
+        ----------
+        points : ndarray
+            An array of points where the first index is the point index and the second index is the coordinate.
+
+        Returns
+        -------
+        ndarray
+            The velocity vector induced at each point.
+        """
+
+        # Determine displacement vectors
+        r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
+        r_mag = vec_norm(r)
+
+        # Determine some other parameters
+        z = vec_inner(r, self.n[np.newaxis,np.newaxis,:])
+        e = r[:,:,0]**2+z**2
+        h = r[:,:,0]*r[:,:,1]
+
+        # Calculate influence
+        phi = np.zeros_like(points)
+        with np.errstate(divide='ignore'):
+            for i in range(self.N):
+                phi += np.arctan()
+
+        return 0.25/np.pi*phi
 
 
     def get_edge_normals(self):
