@@ -97,11 +97,8 @@ class SupersonicSolver(Solver):
         # Run recursive search, beginning at most downstream point and heading upstream
         for i, vert_ind in enumerate(self._sorted_ind):
 
-            # Check if it's already been calculated
-            if not self._dod_is_calculated[vert_ind]:
-
-                # Call recursive function
-                self._calc_dod(vert_ind, i)
+            # Call recursive function
+            self._calc_dod(vert_ind, i)
 
             if self._verbose: prog.display()
 

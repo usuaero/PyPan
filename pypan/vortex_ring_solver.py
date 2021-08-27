@@ -234,7 +234,7 @@ class VortexRingSolver(Solver):
             if self._verbose: prog.display()
 
             # Include doublet sheet principal value in the velocity
-            self._v -= 0.5*self._mesh.get_gradient(self._mu)
+            self._v += -0.5*self._mesh.get_gradient(self._mu)
             if self._verbose: prog.display()
 
             # Determine coefficients of pressure

@@ -1,12 +1,9 @@
-# This script is for me to test the functionality of whatever I'm working on at the moment.
 import machupX as MX
 import pypan as pp
 import json
 import numpy as np
-import subprocess as sp
 import matplotlib.pyplot as plt
 from stl import mesh
-from mpl_toolkits import mplot3d
 
 if __name__=="__main__":
     
@@ -28,7 +25,7 @@ if __name__=="__main__":
             "NACA_0010" : {
                 #"CLa" : 6.808347851,
                 "geometry" : {
-                    "NACA" : "0010"
+                    "NACA" : "0002"
                 }
             }
         },
@@ -51,7 +48,7 @@ if __name__=="__main__":
                 "CAD_options" :{
                     "round_wing_tip" : True,
                     "round_wing_root" : False,
-                    "n_rounding_sections" : 20
+                    "n_rounding_sections" : 30
                 }
             }
         }
@@ -72,12 +69,12 @@ if __name__=="__main__":
 
     # Export vtk
     vtk_file = "dev/meshes/mux_compare.vtk"
-    scene.export_vtk(filename=vtk_file, section_resolution=61)
+    scene.export_vtk(filename=vtk_file, section_resolution=81)
 
     # Generate mesh
-    my_mesh = pp.Mesh(mesh_file=vtk_file, mesh_file_type="VTK", kutta_angle=90.0, verbose=True)
+    my_mesh = pp.Mesh(name='mux_compare', mesh_file=vtk_file, verbose=True)
     #my_mesh.export_vtk("swept_wing_pp.vtk")
-    my_mesh.set_fixed_wake(type='freestream', dir=[-1.0, 0.0, 0.0])
+    my_mesh.set_wake(type='fixed', kutta_angle=90.0)
 
     # Initialize solver
     solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
@@ -93,11 +90,11 @@ if __name__=="__main__":
 
     # Comparison
     print()
-    print("% Error from PyPan")
-    print("------------------")
-    print("Fx: {0}%".format(100.0*abs((F[0]-FM['Fx'])/F[0])))
-    print("Fy: {0}%".format(100.0*abs((F[1]-FM['Fy'])/F[1])))
-    print("Fz: {0}%".format(100.0*abs((F[2]-FM['Fz'])/F[2])))
-    print("Mx: {0}%".format(100.0*abs((M[0]-FM['Mx'])/M[0])))
-    print("My: {0}%".format(100.0*abs((M[1]-FM['My'])/M[1])))
-    print("Mz: {0}%".format(100.0*abs((M[2]-FM['Mz'])/M[2])))
+    print("{0:<5}{1:<25}{2:<25}{3:<25}".format("", "PyPan", "MachUpX", "% Error"))
+    print("".join(["-"]*80))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("Fx", F[0], FM['Fx'], 100.0*abs((F[0]-FM['Fx'])/F[0])))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("Fy", F[1], FM['Fy'], 100.0*abs((F[1]-FM['Fy'])/F[1])))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("Fz", F[2], FM['Fz'], 100.0*abs((F[2]-FM['Fz'])/F[2])))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("Mx", M[0], FM['Mx'], 100.0*abs((M[0]-FM['Mx'])/M[0])))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("My", M[1], FM['My'], 100.0*abs((M[1]-FM['My'])/M[1])))
+    print("{0:<5}{1:<25.8f}{2:<25.8f}{3:<25.8f}".format("Mz", M[2], FM['Mz'], 100.0*abs((M[2]-FM['Mz'])/M[2])))

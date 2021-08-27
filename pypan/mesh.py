@@ -614,7 +614,7 @@ class Mesh:
             elif self._wake_type == "marching_streamline":
                 self.wake = MarchingStreamlineWake(kutta_edges=self._kutta_edges, **self._wake_kwargs)
             else:
-                raise IOError("{0} is not a valid wake type.".format(wake_type))
+                raise IOError("{0} is not a valid wake type.".format(self._wake_type))
 
 
     def _set_up_lst_sq(self):

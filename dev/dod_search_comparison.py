@@ -20,12 +20,12 @@ if __name__=="__main__":
     mesh_files = ["dev/meshes/supersonic_wing_body_ultra_low_res.stl",
                   "dev/meshes/supersonic_wing_body_very_low_res.stl",
                   "dev/meshes/supersonic_wing_body_low_res.stl",
-                  "dev/meshes/supersonic_wing_body_med_res.stl",
-                  "dev/meshes/supersonic_wing_body_hi_res.stl",
-                  "dev/meshes/supersonic_wing_body_very_hi_res.stl",
-                  "dev/meshes/supersonic_wing_body_ultra_hi_res.stl",]
+                  "dev/meshes/supersonic_wing_body_med_res.stl"]
+                  #"dev/meshes/supersonic_wing_body_hi_res.stl",
+                  #"dev/meshes/supersonic_wing_body_very_hi_res.stl",
+                  #"dev/meshes/supersonic_wing_body_ultra_hi_res.stl",]
 
-    mach_nums = [1.2, 1.6, 2.2, 3.0]
+    mach_nums = [1.2]#, 1.6, 2.2, 3.0]
     colors = ["#000000", "#333333", "#555555", "#888888", "#AAAAAA", "#DDDDDD"]
     N_vert = []
     recursive_times = np.zeros((len(mesh_files), len(mach_nums)))
