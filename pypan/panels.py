@@ -14,7 +14,6 @@ class Panel:
     def __init__(self, **kwargs):
 
         # Initialize some storage
-        self.vertices = []
         self.touching_panels = [] # Panels which share at least one vertex with this panel
         self.abutting_panels = [] # Panels which share two vertices with this panel
         self.touching_panels_not_across_kutta_edge = [] # Panels which share at least one vertex with this panel where those two vertices do not define a Kutta edge
@@ -99,19 +98,26 @@ class Panel:
         """
 
         # Determine displacement vectors
+        # First index is vertex, second is point, third is component
         r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
+
+        # Transform to panel coordinates
+        r = np.einsum('ij,klj->kli', self.A_t, r)
+
+        # Get displacement magnitudes
         r_mag = vec_norm(r)
 
         # Determine some other parameters
-        z = vec_inner(r, self.n[np.newaxis,np.newaxis,:])
+        z = vec_inner(r, self.A_t[2][np.newaxis,np.newaxis,:])
         e = r[:,:,0]**2+z**2
         h = r[:,:,0]*r[:,:,1]
+        r_rolled = np.roll(r, 1, axis=-1)
+        m = (r_rolled[:,:,1]-r[:,:,1])/(r_rolled[:,:,0]-r[:,:,0])
 
         # Calculate influence
-        phi = np.zeros_like(points)
-        with np.errstate(divide='ignore'):
-            for i in range(self.N):
-                phi += np.arctan()
+        phi = np.zeros(points.shape[0])
+        for i in range(self.N):
+            phi += np.arctan((m[i-1,:]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((m[i-1,:]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
 
         return 0.25/np.pi*phi
 

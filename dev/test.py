@@ -9,11 +9,11 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
+    #mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
     #mesh_file = "dev/meshes/demo.tri"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
-    #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
+    mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
     #mesh_file = "dev/meshes/1250_sphere.vtk"
@@ -43,7 +43,7 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    my_solver.set_condition(V_inf=[-100.0, 0.0, -10.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=[0.0, 0.0, 100.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
     #my_mesh.plot(panels=True)
@@ -61,7 +61,7 @@ if __name__=="__main__":
     my_solver.export_vtk(results_file)
 
     # Export potential
-    my_solver.export_potential('dev/results/potential.vtk', verbose=True, res=[10, 10, 10], buffers=[1.0, 1.0, 30.0])
+    my_solver.export_potential('dev/results/potential.vtk', verbose=True, res=[10, 10, 10], buffers=[1.0, 1.0, 1.0])
 
     print()
     print("Total execution time: {0} s".format(time.time()-start_time))

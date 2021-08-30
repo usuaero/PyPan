@@ -6,7 +6,7 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 
 from pypan.solvers import Solver
-from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross
+from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner
 from pypan.helpers import OneLineProgress
 from pypan.wake import StraightFixedWake, MarchingStreamlineWake, FullStreamlineWake, VelocityRelaxedWake
 
@@ -357,16 +357,18 @@ class VortexRingSolver(Solver):
         mins_out = mins-deltas*buffers
 
         # Distribute points
-        x = np.linspace(mins_out[0], maxs_out[0], res[0])
-        y = np.linspace(mins_out[1], maxs_out[1], res[1])
-        z = np.linspace(mins_out[2], maxs_out[2], res[2])
+        x_grid = np.linspace(mins_out[0], maxs_out[0], res[0])
+        y_grid = np.linspace(mins_out[1], maxs_out[1], res[1])
+        z_grid = np.linspace(mins_out[2], maxs_out[2], res[2])
 
         # Create 3D grid
         N_points = res[0]*res[1]*res[2]
+        x, y, z = np.meshgrid(x_grid, y_grid, z_grid, indexing='ij', copy=False)
+        points = np.array([x.flatten(), y.flatten(), z.flatten()]).transpose()
 
         if verbose:
             print()
-            prog = OneLineProgress(2*N_points, msg="Writing potential file")
+            prog = OneLineProgress(N_points, msg="Writing potential file points")
 
         # Initialize file
         with open(filename, 'w') as export_handle:
@@ -381,18 +383,23 @@ class VortexRingSolver(Solver):
 
             # Write vertices
             print("POINTS {0} float".format(N_points), file=export_handle)
-            for i, x_i in enumerate(x):
-                for j, y_j in enumerate(y):
-                    for k, z_k in enumerate(z):
-                        print("{0:<20.12}{1:<20.12}{2:<20.12}".format(x_i, y_j, z_k), file=export_handle)
-                        if verbose: prog.display()
+            for point in points:
+                print("{0:<20.12}{1:<20.12}{2:<20.12}".format(point[0], point[1], point[2]), file=export_handle)
+                if verbose: prog.display()
+
+            if verbose:
+                print()
+                prog = OneLineProgress(self._N_panels, msg="Writing potential file potentials")
+
+            # Determine potentials
+            phi = vec_inner(self._v_inf, points)
+            for n, panel in enumerate(self._mesh.panels):
+                phi += panel.get_ring_potential(points)*self._mu[n]
+                if verbose: prog.display()
 
             # Write potential
             print("POINT_DATA {0}".format(N_points), file=export_handle)
             print("SCALARS potential float 1", file=export_handle)
             print("LOOKUP_TABLE default", file=export_handle)
-            for i, x_i in enumerate(x):
-                for j, y_j in enumerate(y):
-                    for k, z_k in enumerate(z):
-                        print("{0:<20.12}".format(x_i+y_j**2+100*np.cos(z_k)), file=export_handle)
-                        if verbose: prog.display()
+            for p in phi:
+                print("{0:<20.12}".format(p), file=export_handle)
