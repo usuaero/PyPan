@@ -20,6 +20,12 @@ class Panel:
         self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
         self.second_abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel or its abutting panels where those two vertices do not define a Kutta edge
 
+        # Calculate edge tangents
+        v_rolled = np.roll(self.vertices, -1, axis=0)
+        self._t = v_rolled-self.vertices
+        self._t_proj = np.einsum('ij,kj->ik', self._t, self.A_t) # Edge vectors in panel coordinate system; last component should be zero for planar panels
+        self._m = self._t_proj[:,1]/self._t_proj[:,0]
+
 
     def get_info(self):
         """Returns the panel normal, area, and centroid.
@@ -101,23 +107,22 @@ class Panel:
         # First index is vertex, second is point, third is component
         r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
 
-        # Transform to panel coordinates
-        r = np.einsum('ij,klj->kli', self.A_t, r)
-
         # Get displacement magnitudes
         r_mag = vec_norm(r)
 
+        # Transform to panel coordinates
+        r = np.einsum('ij,klj->kli', self.A_t, r)
+
         # Determine some other parameters
-        z = vec_inner(r, self.A_t[2][np.newaxis,np.newaxis,:])
+        z = r[:,:,2]
         e = r[:,:,0]**2+z**2
         h = r[:,:,0]*r[:,:,1]
-        r_rolled = np.roll(r, 1, axis=-1)
-        m = (r_rolled[:,:,1]-r[:,:,1])/(r_rolled[:,:,0]-r[:,:,0])
 
         # Calculate influence
         phi = np.zeros(points.shape[0])
-        for i in range(self.N):
-            phi += np.arctan((m[i-1,:]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((m[i-1,:]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
+        with np.errstate(divide='ignore'):
+            for i in range(self.N):
+                phi += np.arctan((self._m[i-1]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((self._m[i-1]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
 
         return 0.25/np.pi*phi
 
@@ -167,8 +172,6 @@ class Quad(Panel):
 
         self.N = 4
 
-        super().__init__(**kwargs)
-
         # Set up local coordinate transformation
         n = self._calc_normal()
         self.A_t = np.zeros((3,3))
@@ -176,6 +179,8 @@ class Quad(Panel):
         self.A_t[0] /= norm(self.A_t[0])
         self.A_t[1] = cross(n, self.A_t[0])
         self.A_t[2] = n
+
+        super().__init__(**kwargs)
 
 
     def _calc_area(self):
@@ -203,8 +208,6 @@ class Tri(Panel):
 
         self.N = 3
 
-        super().__init__(**kwargs)
-
         # Set up local coordinate transformation
         n,_,_ = self.get_info()
         self.A_t = np.zeros((3,3))
@@ -212,6 +215,8 @@ class Tri(Panel):
         self.A_t[0] /= norm(self.A_t[0])
         self.A_t[1] = cross(n, self.A_t[0])
         self.A_t[2] = n
+
+        super().__init__(**kwargs)
 
 
     def _calc_area(self):
