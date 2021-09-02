@@ -325,8 +325,8 @@ class VortexRingSolver(Solver):
         return np.einsum('ijk,j', inf_mat, self._mu)
 
 
-    def export_potential(self, filename, **kwargs):
-        """Exports the velocity potential throughout the volume and on the body to the specified file. This takes a long time.
+    def _export_potential(self, filename, **kwargs):
+        """Exports the velocity potential throughout the volume and on the body to the specified file. IN DEVELOPMENT: NOT ACCURATE.
 
         Parameters
         ----------

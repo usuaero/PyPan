@@ -124,6 +124,8 @@ class Panel:
             for i in range(self.N):
                 phi += np.arctan((self._m[i-1]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((self._m[i-1]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
 
+        # Handle limiting case
+        phi = np.where(np.abs(z[0,:])<1e-12, 2.0*np.pi, phi)
         return 0.25/np.pi*phi
 
 
