@@ -782,10 +782,16 @@ class Mesh:
 
         kutta_edges : bool, optional
             Whether to display the edges at which the Kutta condition will be enforced. Defaults to True.
+
+        highlight_panels : list, optional
+            A list of panel indices to highlight in yellow. Defaults to no panels.
         """
 
         print()
         print("Plotting...")
+
+        # Get kwargs
+        highlight_panels = kwargs.get("highlight_panels", [])
 
         # Set up plot
         fig = plt.figure(figsize=plt.figaspect(1.0))
@@ -796,10 +802,13 @@ class Mesh:
             for i, panel in enumerate(self.panels):
                 n_vert = panel.vertices.shape[1]
                 ind = [x%n_vert for x in range(n_vert+1)]
-                ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-')
+                if i in highlight_panels:
+                    ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'y-')
+                else:
+                    ax.plot(panel.vertices[ind,0], panel.vertices[ind,1], panel.vertices[ind,2], 'k-')
         
         # Plot vertices
-        if kwargs.get("panels", True):
+        if kwargs.get("vertices", True):
             for i, vertex in enumerate(self.vertices):
                 ax.plot(vertex[0], vertex[1], vertex[2], 'g.')
         
@@ -933,7 +942,11 @@ class Mesh:
 
             # Solve
             A = self.A_lsq[i]
-            c = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
+            try:
+                c = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
+            except np.linalg.LinAlgError:
+                self.plot(panels=True, highlight_panels=[i], vertices=False)
+                c = np.zeros(5)
 
             # Transform back to global coords
             if self._gradient_type=='quad':

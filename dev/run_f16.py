@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    #mesh_file = "dev/meshes/F16_surfaceMesh_single.stl"
-    mesh_file = "dev/meshes/F16_surfaceMesh_multi.stl"
+    mesh_file = "dev/meshes/F16_surfaceMesh_single.stl"
 
     # Start timer
     start_time = time.time()
@@ -18,7 +17,7 @@ if __name__=="__main__":
     name = mesh_file.replace("dev/meshes/", "").replace(".stl", "").replace(".vtk", "")
 
     # Load mesh
-    my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, verbose=True, multi_file='multi' in mesh_file)
+    my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, verbose=True, multi_file='multi' in mesh_file, gradient_fit_type='linear')
 
     # Export vtk if we need to
     vtk_file = mesh_file.replace(".stl", ".vtk")
@@ -36,28 +35,36 @@ if __name__=="__main__":
     my_solver = pp.VortexRingSolver(mesh=my_mesh, verbose=True)
 
     # Set condition
-    alpha = np.radians(20.0)
+    alpha = np.radians(5.0)
     V = 100.0
-    V_inf = np.array([V*np.cos(alpha), 0.0, V*np.sin(alpha)])
-    my_solver.set_condition(V_inf=V_inf, rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
-
-    # Plot
-    my_mesh.plot()
+    V_inf = np.array([-V*np.cos(alpha), 0.0, -V*np.sin(alpha)])
+    rho = 0.0023769
+    my_solver.set_condition(V_inf=V_inf, rho=rho, angular_rate=[0.0, 0.0, 0.0])
+    u_inf = V_inf/V
 
     # Solve
     results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
-    F, M = my_solver.solve(verbose=True, wake_iterations=0)#, export_wake_series=True, wake_series_title=results_file.replace(".vtk", "_series"), method='direct')
+    F, M = my_solver.solve(verbose=True)
+
+    # Print results
     print()
     print("F: ", F)
     print("M: ", M)
     print("Max C_P: ", np.max(my_solver._C_P))
     print("Min C_P: ", np.min(my_solver._C_P))
 
+    # Calculate lift and drag
+    D = np.inner(F, u_inf)
+    L = np.linalg.norm(F-D*u_inf)
+    Sw = 20.0
+    print("L: ", L)
+    print("D: ", D)
+    print("L/D: ", L/D)
+    print("CL: ", L/(0.5*rho*V**2*Sw))
+    print("CD: ", D/(0.5*rho*V**2*Sw))
+
     # Export results as VTK
     my_solver.export_vtk(results_file)
-
-    # Export potential
-    my_solver.export_potential('dev/results/potential.vtk', verbose=True, res=[10, 10, 10], buffers=[1.0, 1.0, 1.0])
 
     print()
     print("Total execution time: {0} s".format(time.time()-start_time))
