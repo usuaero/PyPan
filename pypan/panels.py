@@ -20,11 +20,11 @@ class Panel:
         self.abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel where those two vertices do not define a Kutta edge
         self.second_abutting_panels_not_across_kutta_edge = [] # Panels which share two vertices with this panel or its abutting panels where those two vertices do not define a Kutta edge
 
-        # Calculate edge tangents
-        v_rolled = np.roll(self.vertices, -1, axis=0)
-        self._t = v_rolled-self.vertices
-        self._t_proj = np.einsum('ij,kj->ik', self._t, self.A_t) # Edge vectors in panel coordinate system; last component should be zero for planar panels
-        self._m = self._t_proj[:,1]/self._t_proj[:,0]
+        ## Calculate edge tangents
+        #v_rolled = np.roll(self.vertices, -1, axis=0)
+        #self._t = v_rolled-self.vertices
+        #self._t_proj = np.einsum('ij,kj->ik', self._t, self.A_t) # Edge vectors in panel coordinate system; last component should be zero for planar panels
+        #self._m = self._t_proj[:,1]/self._t_proj[:,0]
 
 
     def get_info(self):
@@ -89,44 +89,44 @@ class Panel:
         return 0.25/np.pi*v
 
 
-    def get_ring_potential(self, points):
-        """Determines the velocity potential induced by this panel at arbitrary points, assuming a vortex ring (0th order) model and a unit positive vortex strength.
+    #def get_ring_potential(self, points):
+    #    """Determines the velocity potential induced by this panel at arbitrary points, assuming a vortex ring (0th order) model and a unit positive vortex strength.
 
-        Parameters
-        ----------
-        points : ndarray
-            An array of points where the first index is the point index and the second index is the coordinate.
+    #    Parameters
+    #    ----------
+    #    points : ndarray
+    #        An array of points where the first index is the point index and the second index is the coordinate.
 
-        Returns
-        -------
-        ndarray
-            The velocity vector induced at each point.
-        """
+    #    Returns
+    #    -------
+    #    ndarray
+    #        The velocity vector induced at each point.
+    #    """
 
-        # Determine displacement vectors
-        # First index is vertex, second is point, third is component
-        r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
+    #    # Determine displacement vectors
+    #    # First index is vertex, second is point, third is component
+    #    r = points[np.newaxis,:,:]-self.vertices[:,np.newaxis,:]
 
-        # Get displacement magnitudes
-        r_mag = vec_norm(r)
+    #    # Get displacement magnitudes
+    #    r_mag = vec_norm(r)
 
-        # Transform to panel coordinates
-        r = np.einsum('ij,klj->kli', self.A_t, r)
+    #    # Transform to panel coordinates
+    #    r = np.einsum('ij,klj->kli', self.A_t, r)
 
-        # Determine some other parameters
-        z = r[:,:,2]
-        e = r[:,:,0]**2+z**2
-        h = r[:,:,0]*r[:,:,1]
+    #    # Determine some other parameters
+    #    z = r[:,:,2]
+    #    e = r[:,:,0]**2+z**2
+    #    h = r[:,:,0]*r[:,:,1]
 
-        # Calculate influence
-        phi = np.zeros(points.shape[0])
-        with np.errstate(divide='ignore'):
-            for i in range(self.N):
-                phi += np.arctan((self._m[i-1]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((self._m[i-1]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
+    #    # Calculate influence
+    #    phi = np.zeros(points.shape[0])
+    #    with np.errstate(divide='ignore'):
+    #        for i in range(self.N):
+    #            phi += np.arctan((self._m[i-1]*e[i-1,:]-h[i-1,:])/(z[i-1,:]*r_mag[i-1,:]))-np.arctan((self._m[i-1]*e[i,:]-h[i,:])/(z[i,:]*r_mag[i,:]))
 
-        # Handle limiting case
-        phi = np.where(np.abs(z[0,:])<1e-12, 2.0*np.pi, phi)
-        return 0.25/np.pi*phi
+    #    # Handle limiting case
+    #    phi = np.where(np.abs(z[0,:])<1e-12, 2.0*np.pi, phi)
+    #    return 0.25/np.pi*phi
 
 
     def get_edge_normals(self):
