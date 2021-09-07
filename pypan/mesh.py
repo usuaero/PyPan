@@ -33,6 +33,9 @@ class Mesh:
 
         Currently PyPan can import a VTK *unstructured mesh*. The panels should be given as POLYGONS. PyPan can accept no other format currently. Within a VTK file, the normal vector, area, and centroid may also be given under CELL_DATA. In all cases LOOKUP_TABLE should be default (PyPan is not currently able to parse non-default lookup tables).
 
+    multi_file : bool, optional
+        Whether the mesh file contains multiple meshes which should be combined into one. This functionality only exists for STL files (as far as I know). Defaults to False, in which case, if the file contains multiple meshes, only the first will be read in.
+
     adjacency_file : str, optional
         Name of the panel adjacency mapping file for this mesh. Must be previously generated using Mesh.export_panel_adjacency_mapping(). Defaults to None, in which case the panel adjacency mapping will be determined using a brute force approach. Also, if the file cannot be found as specified, it will be ignored and the panel adjacency mapping will be determined using the brute force approach.
 
@@ -56,10 +59,18 @@ class Mesh:
         if self._verbose:
             start_time = time.time()
             print("\nReading in mesh...", end='', flush=True)
-        self._load_mesh(mesh_file)
+        self._load_mesh(mesh_file, multi_file=kwargs.get("multi_file", False))
         if self._verbose:
             end_time = time.time()
             print("Finished. Time: {0} s.".format(end_time-start_time), flush=True)
+
+        # Display mesh information
+        if self._verbose:
+            print("\nMesh Parameters:")
+            print("    # panels: {0}".format(self.N))
+            print("    # vertices: {0}".format(self.vertices.shape[0]))
+            print("    Max panel size: {0}".format(np.max(self.dA)))
+            print("    Min panel size: {0}".format(np.min(self.dA)))
 
         # Determine panel adjacency mapping
         self._determine_panel_adjacency_mapping(**kwargs)
@@ -70,23 +81,15 @@ class Mesh:
         # Set up dummy wake
         self.wake = Wake(kutta_edges=[])
 
-        # Display mesh information
-        if self._verbose:
-            print("\nMesh Parameters:")
-            print("    # panels: {0}".format(self.N))
-            print("    # vertices: {0}".format(self.vertices.shape[0]))
-            print("    Max panel size: {0}".format(np.max(self.dA)))
-            print("    Min panel size: {0}".format(np.min(self.dA)))
-
     
-    def _load_mesh(self, mesh_file):
+    def _load_mesh(self, mesh_file, multi_file=False):
         # Loads the mesh from the input file
 
         self._vertex_mapping_needed = True
 
         # STL
         if ".stl" in mesh_file or ".STL" in mesh_file:
-            self._load_stl(mesh_file)
+            self._load_stl(mesh_file, multi_file)
             self._vertex_mapping_needed = False
 
         # VTK
@@ -114,34 +117,80 @@ class Mesh:
             self.vertex_objects[i] = Vertex(vertex, self.N_vert)
 
 
-    def _load_stl(self, stl_file):
+    def _load_stl(self, stl_file, multi_file):
         # Loads mesh from an stl file
 
-        # Load stl file
-        raw_mesh = stl.mesh.Mesh.from_file(stl_file)
-
-        # Initialize storage
-        N = raw_mesh.v0.shape[0]
-        self.N = N
         self.panels = []
-        bad_facets = []
+        v0 = []
+        v1 = []
+        v2 = []
 
-        # Loop through panels and initialize objects
-        for i in range(N):
+        # Load stl file
+        if multi_file:
 
-            # Check for finite area
-            if norm(raw_mesh.normals[i]) == 0.0:
-                self.N -= 1
-                warnings.warn("Panel {0} has zero area. Skipping...".format(i))
-                bad_facets.append(i)
-                continue
+            # Load multiple meshes from file
+            raw_meshes = stl.mesh.Mesh.from_multi_file(stl_file, remove_empty_areas=True)
 
-            # Initialize
-            panel = Tri(v0=raw_mesh.v0[i],
-                        v1=raw_mesh.v1[i],
-                        v2=raw_mesh.v2[i])
+            # Initialize storage
+            bad_facets = []
 
-            self.panels.append(panel)
+            # Loop through panels and initialize objects
+            i = -1
+            N = 0
+            for raw_mesh in raw_meshes:
+
+                # Update number of panels
+                N += raw_mesh.v0.shape[0]
+
+                # Store vertices
+                v0.append(raw_mesh.v0)
+                v1.append(raw_mesh.v1)
+                v2.append(raw_mesh.v2)
+                for j in range(raw_mesh.v0.shape[0]):
+                    i += 1
+
+                    # Check for finite area
+                    if norm(raw_mesh.normals[j]) == 0.0:
+                        N -= 1
+                        warnings.warn("Panel {0} has zero area. Skipping...".format(i))
+                        bad_facets.append(i)
+                        continue
+
+                    # Initialize
+                    panel = Tri(v0=raw_mesh.v0[j],
+                                v1=raw_mesh.v1[j],
+                                v2=raw_mesh.v2[j])
+
+                    self.panels.append(panel)
+
+            self.N = N
+
+        else:
+
+            # Load one mesh from file
+            raw_mesh = stl.mesh.Mesh.from_file(stl_file, remove_empty_areas=True)
+
+            # Initialize storage
+            N = raw_mesh.v0.shape[0]
+            self.N = N
+            bad_facets = []
+
+            # Loop through panels and initialize objects
+            for i in range(N):
+
+                # Check for finite area
+                if norm(raw_mesh.normals[i]) == 0.0:
+                    self.N -= 1
+                    warnings.warn("Panel {0} has zero area. Skipping...".format(i))
+                    bad_facets.append(i)
+                    continue
+
+                # Initialize
+                panel = Tri(v0=raw_mesh.v0[i],
+                            v1=raw_mesh.v1[i],
+                            v2=raw_mesh.v2[i])
+
+                self.panels.append(panel)
 
         self.panels = np.array(self.panels)
 
@@ -152,9 +201,18 @@ class Mesh:
         for i in range(self.N):
             self.n[i], self.dA[i], self.cp[i] = self.panels[i].get_info()
 
-        # Get vertex list
+        # Return vertices belonging to existent panels
         good_facets = [i for i in range(N) if i not in bad_facets]
-        raw_vertices = np.concatenate((raw_mesh.v0[good_facets], raw_mesh.v1[good_facets], raw_mesh.v2[good_facets]))
+        if multi_file:
+            v0 = np.concatenate(v0, axis=0)
+            v1 = np.concatenate(v1, axis=0)
+            v2 = np.concatenate(v2, axis=0)
+            raw_vertices = np.concatenate((v0[good_facets], v1[good_facets], v2[good_facets]))
+
+        else:
+            raw_vertices = np.concatenate((raw_mesh.v0[good_facets], raw_mesh.v1[good_facets], raw_mesh.v2[good_facets]))
+
+        # Get vertex list
         self.vertices, inverse_indices = np.unique(raw_vertices, return_inverse=True, axis=0)
         self._panel_vertex_indices = []
         for i in range(self.N):
