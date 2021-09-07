@@ -39,7 +39,7 @@ if __name__=="__main__":
     alpha = np.radians(20.0)
     V = 100.0
     V_inf = np.array([V*np.cos(alpha), 0.0, V*np.sin(alpha)])
-    my_solver.set_condition(V_inf=[0.0, 0.0, 100.0], rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
+    my_solver.set_condition(V_inf=V_inf, rho=0.0023769, angular_rate=[0.0, 0.0, 0.0])
 
     # Plot
     my_mesh.plot()
