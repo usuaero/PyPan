@@ -6,7 +6,7 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 
 from pypan.solvers import Solver
-from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner
+from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner, gauss_seidel
 from pypan.helpers import OneLineProgress
 from pypan.wake import StraightFixedWake, MarchingStreamlineWake, FullStreamlineWake, VelocityRelaxedWake
 
@@ -113,7 +113,7 @@ class VortexRingSolver(Solver):
         Parameters
         ----------
         method : str, optional
-            Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation (A*)Ax=(A*)b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
+            Method for computing the least-squares solution to the system of equations. May be 'direct', 'gauss-seidel', or 'svd'. 'direct' solves the equation (A*)Ax=(A*)b using a standard linear algebra solver. 'gauss-seidel' solves the same equation using the Gauss-Seidel iterative method. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
             How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is equal to the number of filament segments in the wake and this setting is ignored. Defaults to 2.
@@ -195,6 +195,12 @@ class VortexRingSolver(Solver):
             # Singular value decomposition
             elif method == "svd":
                 self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+
+            # Gauss-Seidel
+            elif method == "gauss-seidel":
+                b = np.matmul(A.T, b[:,np.newaxis])
+                A = np.matmul(A.T, A)
+                self._mu = gauss_seidel(A, b, verbose=self._verbose).flatten()
 
             # Clear up memory
             del A

@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    mesh_file = "dev/meshes/F16_surfaceMesh_single.stl"
+    mesh_file = "dev/meshes/F16_surfaceMesh_single.vtk"
+    mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
 
     # Start timer
     start_time = time.time()
@@ -17,7 +18,7 @@ if __name__=="__main__":
     name = mesh_file.replace("dev/meshes/", "").replace(".stl", "").replace(".vtk", "")
 
     # Load mesh
-    my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, verbose=True, multi_file='multi' in mesh_file, gradient_fit_type='linear')
+    my_mesh = pp.Mesh(name=name, mesh_file=mesh_file, adjacency_file=pam_file, verbose=True, multi_file='multi' in mesh_file)
 
     # Export vtk if we need to
     vtk_file = mesh_file.replace(".stl", ".vtk")
@@ -41,10 +42,13 @@ if __name__=="__main__":
     rho = 0.0023769
     my_solver.set_condition(V_inf=V_inf, rho=rho, angular_rate=[0.0, 0.0, 0.0])
     u_inf = V_inf/V
+    
+    # Plot
+    my_mesh.plot(panels=False, vertices=True, kutta_edges=True)
 
     # Solve
     results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
-    F, M = my_solver.solve(verbose=True)
+    F, M = my_solver.solve(verbose=True, method='gauss-seidel')
 
     # Print results
     print()

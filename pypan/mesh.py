@@ -945,7 +945,7 @@ class Mesh:
             try:
                 c = np.linalg.solve(np.einsum('ij,ik', A, A), np.einsum('ij,i', A, b))
             except np.linalg.LinAlgError:
-                self.plot(panels=True, highlight_panels=[i], vertices=False)
+                #self.plot(panels=True, highlight_panels=[i], vertices=False)
                 c = np.zeros(5)
 
             # Transform back to global coords
