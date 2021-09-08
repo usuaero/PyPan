@@ -6,7 +6,8 @@ import multiprocessing as mp
 import matplotlib.pyplot as plt
 
 from pypan.solvers import Solver
-from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner, gauss_seidel
+from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner
+from pypan.gauss_seidel import gauss_seidel, gauss_seidel_multiprocess
 from pypan.helpers import OneLineProgress
 from pypan.wake import StraightFixedWake, MarchingStreamlineWake, FullStreamlineWake, VelocityRelaxedWake
 
@@ -124,6 +125,12 @@ class VortexRingSolver(Solver):
         wake_series_title : str, optional
             Gives a common file name and location for the wake series export files. Each file will be stored as "<wake_series_title>_<iteration_number>.vtk". May include a file path. Required if "export_wake_series" is True.
 
+        gs_max_iterations : int, optional
+            Maximum iterations for the 'gauss-seidel' method. Defaults to 10000.
+
+        gs_convergence : float, optional
+            Convergence threshold for the 'gauss-seidel' method. Defaults to 1e-10.
+
         verbose : bool, optional
 
         Returns
@@ -200,7 +207,7 @@ class VortexRingSolver(Solver):
             elif method == "gauss-seidel":
                 b = np.matmul(A.T, b[:,np.newaxis])
                 A = np.matmul(A.T, A)
-                self._mu = gauss_seidel(A, b, verbose=self._verbose).flatten()
+                self._mu = gauss_seidel(A, b, **kwargs).flatten()
 
             # Clear up memory
             del A

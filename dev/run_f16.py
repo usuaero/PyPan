@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 if __name__=="__main__":
 
     # Load mesh
-    mesh_file = "dev/meshes/F16_surfaceMesh_single.vtk"
+    #mesh_file = "dev/meshes/F16_surfaceMesh_single.vtk"
     mesh_file = "dev/meshes/swept_wing_low_grid.vtk"
 
     # Start timer
@@ -44,11 +44,11 @@ if __name__=="__main__":
     u_inf = V_inf/V
     
     # Plot
-    my_mesh.plot(panels=False, vertices=True, kutta_edges=True)
+    #my_mesh.plot(panels=False, vertices=True, kutta_edges=True)
 
     # Solve
     results_file = mesh_file.replace("meshes", "results").replace("stl", "vtk").replace("tri", "vtk")
-    F, M = my_solver.solve(verbose=True, method='gauss-seidel')
+    F, M = my_solver.solve(verbose=True, method='gauss-seidel', gs_convergence=1e-4)
 
     # Print results
     print()

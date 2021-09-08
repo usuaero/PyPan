@@ -810,7 +810,7 @@ class Mesh:
         # Plot vertices
         if kwargs.get("vertices", True):
             for i, vertex in enumerate(self.vertices):
-                ax.plot(vertex[0], vertex[1], vertex[2], 'g.')
+                ax.plot(vertex[0], vertex[1], vertex[2], 'g.', markersize=2)
         
         ## Plot adjacency
         #ind = 0
@@ -822,7 +822,7 @@ class Mesh:
         # Plot centroids
         if kwargs.get("centroids", False):
             for i, panel in enumerate(self.panels):
-                ax.plot(self.cp[i][0], self.cp[i][1], self.cp[i][2], 'r.')
+                ax.plot(self.cp[i][0], self.cp[i][1], self.cp[i][2], 'r.', markersize=2)
 
         # Plot Kutta edges
         try:

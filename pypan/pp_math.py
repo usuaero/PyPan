@@ -2,6 +2,8 @@
 
 import numpy as np
 import math as m
+import os
+import multiprocessing as mp
 
 
 def vec_norm(x):
@@ -46,31 +48,3 @@ def cross(x, y):
     return np.array([x[1]*y[2]-x[2]*y[1],
                      x[2]*y[0]-x[0]*y[2],
                      x[0]*y[1]-x[1]*y[0]]).T
-
-def gauss_seidel(A, b, tolerance=1e-10, max_iterations=10000, verbose=False):
-    
-    x = np.zeros_like(b, dtype=np.double)
-
-    if verbose:
-        print("Running Gauss-Seidel")
-        print("{0:<20}{1:<20}".format("Iteration", "Error"))
-    
-    #Iterate
-    for k in range(max_iterations):
-        
-        x_old  = x.copy()
-        
-        #Loop over rows
-        for i in range(A.shape[0]):
-            x[i] = (b[i] - np.dot(A[i,:i], x[:i]) - np.dot(A[i,(i+1):], x_old[(i+1):])) / A[i ,i]
-
-        # Check error
-        err = np.linalg.norm(x - x_old, ord=np.inf) / np.linalg.norm(x, ord=np.inf)
-        if verbose:
-            print("{0:<20}{1:<20.5e}".format(k, err))
-            
-        #Stop condition 
-        if err < tolerance:
-            break
-            
-    return x
