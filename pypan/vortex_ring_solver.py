@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 from pypan.solvers import Solver
 from pypan.pp_math import norm, vec_norm, vec_inner, vec_cross, inner
+from pypan.gauss_seidel import gauss_seidel, gauss_seidel_multiprocess
 from pypan.helpers import OneLineProgress
 from pypan.wake import StraightFixedWake, MarchingStreamlineWake, FullStreamlineWake, VelocityRelaxedWake
 
@@ -113,7 +114,7 @@ class VortexRingSolver(Solver):
         Parameters
         ----------
         method : str, optional
-            Method for computing the least-squares solution to the system of equations. May be 'direct' or 'svd'. 'direct' solves the equation (A*)Ax=(A*)b using a standard linear algebra solver. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
+            Method for computing the least-squares solution to the system of equations. May be 'direct', 'gauss-seidel', or 'svd'. 'direct' solves the equation (A*)Ax=(A*)b using a standard linear algebra solver. 'gauss-seidel' solves the same equation using the Gauss-Seidel iterative method. 'svd' solves the equation Ax=b in a least-squares sense using the singular value decomposition. 'direct' is much faster but may be susceptible to numerical error due to a poorly conditioned system. 'svd' is more reliable at producing a stable solution. Defaults to 'direct'.
 
         wake_iterations : int, optional
             How many times the shape of the wake should be updated and the flow resolved. Only used if the mesh has been set with a "full_streamline" or "relaxed" wake. For "marching_streamline" wakes, the number of iterations is equal to the number of filament segments in the wake and this setting is ignored. Defaults to 2.
@@ -123,6 +124,12 @@ class VortexRingSolver(Solver):
 
         wake_series_title : str, optional
             Gives a common file name and location for the wake series export files. Each file will be stored as "<wake_series_title>_<iteration_number>.vtk". May include a file path. Required if "export_wake_series" is True.
+
+        gs_max_iterations : int, optional
+            Maximum iterations for the 'gauss-seidel' method. Defaults to 10000.
+
+        gs_convergence : float, optional
+            Convergence threshold for the 'gauss-seidel' method. Defaults to 1e-10.
 
         verbose : bool, optional
 
@@ -195,6 +202,12 @@ class VortexRingSolver(Solver):
             # Singular value decomposition
             elif method == "svd":
                 self._mu, res, rank, s_a = np.linalg.lstsq(A, b, rcond=None)
+
+            # Gauss-Seidel
+            elif method == "gauss-seidel":
+                b = np.matmul(A.T, b[:,np.newaxis])
+                A = np.matmul(A.T, A)
+                self._mu = gauss_seidel(A, b, **kwargs).flatten()
 
             # Clear up memory
             del A

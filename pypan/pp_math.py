@@ -2,6 +2,8 @@
 
 import numpy as np
 import math as m
+import os
+import multiprocessing as mp
 
 
 def vec_norm(x):
