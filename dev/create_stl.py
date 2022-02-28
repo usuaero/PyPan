@@ -32,22 +32,22 @@ if __name__=="__main__":
                 "ID" : 1,
                 "side" : "both",
                 "is_main" : True,
-                "semispan" : 3.0,
+                "semispan" : 2.0,
                 "airfoil" : "NACA_0010",
-                "chord" : [[0.0, 5.0],
-                           [0.2, 2.0],
+                "chord" : [[0.0, 1.0],
+                           [0.2, 1.0],
                            [1.0, 1.0]],
-                "sweep" : [[0.0, 70.0],
-                           [0.2, 70.0],
-                           [0.2, 45.0],
-                           [1.0, 45.0]],
+                "sweep" : [[0.0, 00.0],
+                           [0.2, 00.0],
+                           [0.2, 00.0],
+                           [1.0, 00.0]],
                 "grid" : {
-                    "N" : 10,
+                    "N" : 20,
                 },
                 "CAD_options" :{
                     "round_wing_tip" : True,
                     "round_wing_root" : False,
-                    "n_rounding_sections" : 20
+                    "n_rounding_sections" : 10
                 }
             #},
             #"h_stab" : {
@@ -82,5 +82,5 @@ if __name__=="__main__":
     }
     scene = MX.Scene()
     scene.add_aircraft("plane", airplane_dict, state=state)
-    stl_file = "dev/meshes/supersonic_wing_body_ultra_low_res.stl"
-    scene.export_stl(filename=stl_file, section_resolution=15)
+    stl_file = "dev/meshes/straight_wing.stl"
+    scene.export_stl(filename=stl_file, section_resolution=51)

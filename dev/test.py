@@ -13,11 +13,12 @@ if __name__=="__main__":
     #mesh_file = "dev/meshes/swept_wing_and_tail.vtk"
     #mesh_file = "dev/meshes/demo.tri"
     #mesh_file = "dev/meshes/swept_wing_high_grid.vtk"
-    mesh_file = "dev/meshes/1250_polygon_sphere.stl"
+    #mesh_file = "dev/meshes/1250_polygon_sphere.stl"
     #mesh_file = "dev/meshes/5000_polygon_sphere.vtk"
     #mesh_file = "dev/meshes/20000_polygon_sphere.stl"
     #mesh_file = "dev/meshes/1250_sphere.vtk"
     #mesh_file = "dev/meshes/F16_Original_withFins.vtk"
+    mesh_file = "dev/meshes/straight_wing.stl"
 
     # Start timer
     start_time = time.time()
